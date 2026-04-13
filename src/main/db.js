@@ -4,10 +4,16 @@ const path = require('path')
 let _db = null
 
 function openDb(file) {
-  if (file) return new Database(file)
+  if (file) {
+    const db = new Database(file)
+    db.pragma('foreign_keys = ON')
+    return db
+  }
   const { app } = require('electron')
   const dbPath = path.join(app.getPath('userData'), 'ambulatory.db')
-  return new Database(dbPath)
+  const db = new Database(dbPath)
+  db.pragma('foreign_keys = ON')
+  return db
 }
 
 function getDb() {
@@ -71,7 +77,8 @@ function runMigrations(db) {
       category TEXT NOT NULL,
       value TEXT NOT NULL,
       is_active INTEGER NOT NULL DEFAULT 1,
-      sort_order INTEGER NOT NULL DEFAULT 0
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(category, value)
     );
     CREATE TABLE IF NOT EXISTS audit_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
