@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ambulatory Patients – Reports</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; color: #1a1a2e; display: flex; height: 100vh; overflow: hidden; }
+
+  .sidebar { width: 220px; background: #1a1a2e; color: #fff; display: flex; flex-direction: column; flex-shrink: 0; }
+  .sidebar-logo { padding: 20px 16px 16px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+  .sidebar-logo .app-name { font-size: 13px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: #a0aec0; }
+  .sidebar-logo .app-subtitle { font-size: 11px; color: #718096; margin-top: 2px; }
+  .sidebar-nav { flex: 1; padding: 12px 0; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 16px; font-size: 13px; cursor: pointer; color: #a0aec0; border-left: 3px solid transparent; }
+  .nav-item.active { background: rgba(99,102,241,0.15); color: #fff; border-left-color: #6366f1; }
+  .nav-item .icon { width: 16px; text-align: center; font-size: 14px; }
+  .nav-section { padding: 8px 16px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #4a5568; margin-top: 8px; }
+  .sidebar-footer { padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.1); }
+  .user-info { display: flex; align-items: center; gap: 8px; }
+  .avatar { width: 28px; height: 28px; border-radius: 50%; background: #6366f1; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; }
+  .user-name { font-size: 12px; color: #a0aec0; }
+
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .topbar { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 0 24px; display: flex; align-items: center; height: 56px; gap: 12px; flex-shrink: 0; }
+  .topbar h1 { font-size: 16px; font-weight: 700; color: #1a202c; }
+
+  .content { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+
+  /* Report card */
+  .report-card { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); overflow: hidden; }
+  .report-header { padding: 16px 20px; border-bottom: 1px solid #f0f2f5; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .report-title-area { display: flex; flex-direction: column; gap: 2px; }
+  .report-title { font-size: 15px; font-weight: 700; color: #1a202c; }
+  .report-desc { font-size: 12px; color: #718096; }
+  .report-controls { display: flex; align-items: center; gap: 8px; }
+  .date-input { padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; color: #4a5568; background: #fff; }
+  .date-sep { font-size: 12px; color: #a0aec0; }
+  .btn-run { padding: 6px 14px; background: #6366f1; color: #fff; border: none; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; }
+  .btn-export { padding: 6px 12px; background: #fff; color: #4a5568; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 5px; }
+
+  .report-body { padding: 20px; display: flex; gap: 24px; }
+
+  /* Summary stats */
+  .report-stats { display: flex; gap: 16px; margin-bottom: 20px; }
+  .stat-box { background: #f7f8fa; border-radius: 8px; padding: 12px 16px; text-align: center; min-width: 90px; }
+  .stat-box .val { font-size: 24px; font-weight: 800; color: #1a202c; }
+  .stat-box .lbl { font-size: 11px; color: #718096; font-weight: 600; margin-top: 2px; }
+
+  /* Bar chart */
+  .chart-area { flex: 1; }
+  .chart-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #a0aec0; margin-bottom: 12px; }
+  .bar-chart { display: flex; flex-direction: column; gap: 8px; }
+  .bar-row { display: flex; align-items: center; gap: 10px; }
+  .bar-label { font-size: 12px; color: #4a5568; width: 140px; text-align: right; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-track { flex: 1; background: #f0f2f5; border-radius: 4px; height: 22px; position: relative; }
+  .bar-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; padding-left: 8px; }
+  .bar-val { font-size: 11px; font-weight: 700; color: #fff; }
+  .bar-val-outside { font-size: 11px; font-weight: 700; color: #4a5568; margin-left: 6px; }
+
+  /* Table */
+  .report-table-wrap { flex: 1; }
+  table { width: 100%; border-collapse: collapse; }
+  thead tr { border-bottom: 2px solid #f0f2f5; }
+  th { padding: 8px 12px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #a0aec0; }
+  tbody tr { border-bottom: 1px solid #f7f8fa; }
+  tbody tr:last-child { border-bottom: none; }
+  td { padding: 9px 12px; font-size: 13px; color: #2d3748; }
+  td.num { font-weight: 700; color: #1a202c; text-align: right; }
+  td.pct { font-size: 11px; color: #718096; text-align: right; }
+
+  .report-divider { width: 1px; background: #f0f2f5; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div class="app-name">Ambulatory</div>
+    <div class="app-subtitle">Patient Tracking</div>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-section">Main</div>
+    <div class="nav-item"><span class="icon">☰</span> Work Queue</div>
+    <div class="nav-item"><span class="icon">📅</span> Appointments</div>
+    <div class="nav-item active"><span class="icon">📊</span> Reports</div>
+    <div class="nav-section">Admin</div>
+    <div class="nav-item"><span class="icon">👥</span> Users</div>
+    <div class="nav-item"><span class="icon">⚙️</span> List of Values</div>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-info">
+      <div class="avatar">MR</div>
+      <div class="user-name">Mary Richards</div>
+    </div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <h1>Reports</h1>
+  </div>
+
+  <div class="content">
+
+    <!-- Report 1: Referrals by Source -->
+    <div class="report-card">
+      <div class="report-header">
+        <div class="report-title-area">
+          <div class="report-title">Referrals by Source</div>
+          <div class="report-desc">Number of new referrals received, grouped by referral source</div>
+        </div>
+        <div class="report-controls">
+          <input class="date-input" type="text" value="03/01/2026" style="width:96px">
+          <span class="date-sep">→</span>
+          <input class="date-input" type="text" value="03/31/2026" style="width:96px">
+          <button class="btn-run">Run</button>
+          <button class="btn-export">⬇ Export</button>
+        </div>
+      </div>
+      <div class="report-body">
+        <div style="flex:1">
+          <div class="report-stats">
+            <div class="stat-box"><div class="val">34</div><div class="lbl">Total Referrals</div></div>
+            <div class="stat-box"><div class="val">6</div><div class="lbl">Sources</div></div>
+          </div>
+          <div class="chart-title">Referrals by Source — March 2026</div>
+          <div class="bar-chart">
+            <div class="bar-row">
+              <span class="bar-label">Physician Referral</span>
+              <div class="bar-track"><div class="bar-fill" style="width:76%;background:#6366f1"><span class="bar-val">26</span></div></div>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Hospital</span>
+              <div class="bar-track"><div class="bar-fill" style="width:24%;background:#818cf8"><span class="bar-val">8</span></div></div>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Self Referral</span>
+              <div class="bar-track"><div class="bar-fill" style="width:15%;background:#a5b4fc"></div><span class="bar-val-outside">5</span></div>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Family Member</span>
+              <div class="bar-track"><div class="bar-fill" style="width:12%;background:#c7d2fe"></div><span class="bar-val-outside">4</span></div>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Social Worker</span>
+              <div class="bar-track"><div class="bar-fill" style="width:9%;background:#e0e7ff"></div><span class="bar-val-outside">3</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="report-divider"></div>
+        <div class="report-table-wrap" style="width:260px;flex-shrink:0">
+          <table>
+            <thead><tr><th>Source</th><th style="text-align:right">Count</th><th style="text-align:right">%</th></tr></thead>
+            <tbody>
+              <tr><td>Physician Referral</td><td class="num">26</td><td class="pct">76%</td></tr>
+              <tr><td>Hospital</td><td class="num">8</td><td class="pct">24%</td></tr>
+              <tr><td>Self Referral</td><td class="num">5</td><td class="pct">15%</td></tr>
+              <tr><td>Family Member</td><td class="num">4</td><td class="pct">12%</td></tr>
+              <tr><td>Social Worker</td><td class="num">3</td><td class="pct">9%</td></tr>
+              <tr><td>Other</td><td class="num">1</td><td class="pct">3%</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Report 2: First Appointments -->
+    <div class="report-card">
+      <div class="report-header">
+        <div class="report-title-area">
+          <div class="report-title">First Appointments</div>
+          <div class="report-desc">Patients whose first appointment occurred within the date range</div>
+        </div>
+        <div class="report-controls">
+          <input class="date-input" type="text" value="03/01/2026" style="width:96px">
+          <span class="date-sep">→</span>
+          <input class="date-input" type="text" value="03/31/2026" style="width:96px">
+          <button class="btn-run">Run</button>
+          <button class="btn-export">⬇ Export</button>
+        </div>
+      </div>
+      <div class="report-body">
+        <div style="flex:1">
+          <div class="report-stats">
+            <div class="stat-box"><div class="val">21</div><div class="lbl">First Appointments</div></div>
+            <div class="stat-box"><div class="val" style="color:#15803d">62%</div><div class="lbl">of Referrals</div></div>
+          </div>
+          <div class="chart-title">First Appointments by Week — March 2026</div>
+          <div class="bar-chart">
+            <div class="bar-row">
+              <span class="bar-label">Mar 2 – Mar 8</span>
+              <div class="bar-track"><div class="bar-fill" style="width:38%;background:#22c55e"><span class="bar-val">8</span></div></div>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Mar 9 – Mar 15</span>
+              <div class="bar-track"><div class="bar-fill" style="width:24%;background:#4ade80"><span class="bar-val">5</span></div></div>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Mar 16 – Mar 22</span>
+              <div class="bar-track"><div class="bar-fill" style="width:24%;background:#86efac"><span class="bar-val">5</span></div></div>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Mar 23 – Mar 31</span>
+              <div class="bar-track"><div class="bar-fill" style="width:14%;background:#bbf7d0"></div><span class="bar-val-outside">3</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="report-divider"></div>
+        <div class="report-table-wrap" style="width:320px;flex-shrink:0">
+          <table>
+            <thead><tr><th>Patient</th><th>First Appt Date</th><th style="text-align:right">Consultant</th></tr></thead>
+            <tbody>
+              <tr><td>Anderson, Margaret L.</td><td style="color:#718096;font-size:12px">Mar 3, 2026</td><td class="pct">Sr. P. Walsh</td></tr>
+              <tr><td>Martinez, Carlos J.</td><td style="color:#718096;font-size:12px">Mar 5, 2026</td><td class="pct">Dcn. Torres</td></tr>
+              <tr><td>Thompson, Dorothy M.</td><td style="color:#718096;font-size:12px">Mar 7, 2026</td><td class="pct">Sr. Anne Marie</td></tr>
+              <tr><td>Williams, James R.</td><td style="color:#718096;font-size:12px">Mar 10, 2026</td><td class="pct">Sr. P. Walsh</td></tr>
+              <tr><td>Patel, Priya S.</td><td style="color:#718096;font-size:12px">Mar 12, 2026</td><td class="pct">Dcn. Torres</td></tr>
+              <tr><td style="color:#a0aec0;font-style:italic" colspan="3">+ 16 more patients…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Report 3: Patients Dropped -->
+    <div class="report-card">
+      <div class="report-header">
+        <div class="report-title-area">
+          <div class="report-title">Patients Dropped</div>
+          <div class="report-desc">Patients whose status was changed to Dropped within the date range</div>
+        </div>
+        <div class="report-controls">
+          <input class="date-input" type="text" value="03/01/2026" style="width:96px">
+          <span class="date-sep">→</span>
+          <input class="date-input" type="text" value="03/31/2026" style="width:96px">
+          <button class="btn-run">Run</button>
+          <button class="btn-export">⬇ Export</button>
+        </div>
+      </div>
+      <div class="report-body">
+        <div style="flex:1">
+          <div class="report-stats">
+            <div class="stat-box"><div class="val" style="color:#dc2626">7</div><div class="lbl">Dropped</div></div>
+            <div class="stat-box"><div class="val">21%</div><div class="lbl">Drop Rate</div></div>
+          </div>
+          <div class="chart-title">Drops by Week — March 2026</div>
+          <div class="bar-chart">
+            <div class="bar-row">
+              <span class="bar-label">Mar 2 – Mar 8</span>
+              <div class="bar-track"><div class="bar-fill" style="width:43%;background:#ef4444"><span class="bar-val">3</span></div></div>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Mar 9 – Mar 15</span>
+              <div class="bar-track"><div class="bar-fill" style="width:29%;background:#f87171"><span class="bar-val">2</span></div></div>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Mar 16 – Mar 22</span>
+              <div class="bar-track"><div class="bar-fill" style="width:14%;background:#fca5a5"></div><span class="bar-val-outside">1</span></div>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Mar 23 – Mar 31</span>
+              <div class="bar-track"><div class="bar-fill" style="width:14%;background:#fecaca"></div><span class="bar-val-outside">1</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="report-divider"></div>
+        <div class="report-table-wrap" style="width:320px;flex-shrink:0">
+          <table>
+            <thead><tr><th>Patient</th><th>Dropped On</th><th style="text-align:right">Changed By</th></tr></thead>
+            <tbody>
+              <tr><td>Kowalski, Robert A.</td><td style="color:#718096;font-size:12px">Mar 4, 2026</td><td class="pct">M. Richards</td></tr>
+              <tr><td>Chen, Linda W.</td><td style="color:#718096;font-size:12px">Mar 6, 2026</td><td class="pct">S. Johnson</td></tr>
+              <tr><td>O'Brien, Catherine F.</td><td style="color:#718096;font-size:12px">Mar 7, 2026</td><td class="pct">M. Richards</td></tr>
+              <tr><td>Nguyen, Thomas B.</td><td style="color:#718096;font-size:12px">Mar 11, 2026</td><td class="pct">S. Johnson</td></tr>
+              <tr><td>Garza, Patricia L.</td><td style="color:#718096;font-size:12px">Mar 18, 2026</td><td class="pct">M. Richards</td></tr>
+              <tr><td style="color:#a0aec0;font-style:italic" colspan="3">+ 2 more patients…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

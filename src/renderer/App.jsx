@@ -19,7 +19,7 @@ function AppRoutes() {
   }, [])
 
   if (loading || needsFirstRun === null) return <div className="loading-screen">Loading…</div>
-  if (needsFirstRun) return <Routes><Route path="*" element={<FirstRun />} /></Routes>
+  if (!user && needsFirstRun) return <Routes><Route path="*" element={<FirstRun />} /></Routes>
   if (!user) return <Routes><Route path="*" element={<Login />} /></Routes>
 
   return (

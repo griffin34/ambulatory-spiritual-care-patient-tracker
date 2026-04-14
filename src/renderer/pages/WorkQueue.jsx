@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import StatusBadge, { STATUS_CONFIG } from '../components/StatusBadge'
 import { useAuth } from '../hooks/useAuth'
-import { format } from 'date-fns'
+import { format, parseISO } from 'date-fns'
 
 const STATUSES = ['ready_to_schedule','scheduled','completed','dropped','on_hold']
 
@@ -80,10 +80,10 @@ export default function WorkQueue() {
               <tr key={p.id} onClick={() => navigate(`/queue/${p.id}`)} style={{cursor:'pointer'}}>
                 <td className="name">{p.last_name}, {p.first_name}{p.middle_name ? ` ${p.middle_name[0]}.`:''}</td>
                 <td className="mrn">{p.mrn || '—'}</td>
-                <td className="date">{p.date_of_referral ? format(new Date(p.date_of_referral), 'MM/dd/yyyy') : '—'}</td>
+                <td className="date">{p.date_of_referral ? format(parseISO(p.date_of_referral), 'MM/dd/yyyy') : '—'}</td>
                 <td>{p.referral_source || '—'}</td>
                 <td>{p.language || '—'}</td>
-                <td>{p.next_appointment ? format(new Date(p.next_appointment), 'MMM d, h:mm a') : <span style={{color:'#a0aec0',fontStyle:'italic'}}>None</span>}</td>
+                <td>{p.next_appointment ? format(parseISO(p.next_appointment.replace(' ', 'T')), 'MMM d, h:mm a') : <span style={{color:'#a0aec0',fontStyle:'italic'}}>None</span>}</td>
                 <td><StatusBadge status={p.current_status} /></td>
                 <td><button className="action-btn" onClick={e => {e.stopPropagation(); navigate(`/queue/${p.id}`)}}>View</button></td>
               </tr>

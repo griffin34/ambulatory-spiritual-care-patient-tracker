@@ -2,9 +2,54 @@ import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import StatusBadge, { STATUS_CONFIG } from '../components/StatusBadge'
 import { useAuth } from '../hooks/useAuth'
-import { format } from 'date-fns'
+import { format, parseISO } from 'date-fns'
 
 const STATUSES = ['ready_to_schedule','scheduled','completed','dropped','on_hold']
+
+const MINUTES = ['00','05','10','15','20','25','30','35','40','45','50','55']
+const HOURS = ['1','2','3','4','5','6','7','8','9','10','11','12']
+
+function parseTime(v) {
+  if (!v) return { h: '', m: '00', ampm: 'AM' }
+  const [hStr, mStr] = v.split(':')
+  const h24 = parseInt(hStr, 10)
+  return { h: String(h24 % 12 || 12), m: mStr || '00', ampm: h24 >= 12 ? 'PM' : 'AM' }
+}
+
+const selStyle = { flex: 1, minWidth: 0, padding: '8px 4px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13, background: '#fff', color: '#1a1a2e' }
+
+function TimeSelect({ value, onChange, required }) {
+  const [parts, setParts] = useState(() => parseTime(value))
+
+  useEffect(() => { setParts(parseTime(value)) }, [value])
+
+  const update = (field, val) => {
+    const next = { ...parts, [field]: val }
+    setParts(next)
+    if (!next.h) return
+    let h24 = parseInt(next.h, 10)
+    if (next.ampm === 'PM' && h24 !== 12) h24 += 12
+    if (next.ampm === 'AM' && h24 === 12) h24 = 0
+    onChange(`${String(h24).padStart(2, '0')}:${next.m}`)
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4, width: '100%' }}>
+      <select style={selStyle} value={parts.h} onChange={e => update('h', e.target.value)} required={required}>
+        <option value="">--</option>
+        {HOURS.map(v => <option key={v} value={v}>{v}</option>)}
+      </select>
+      <span style={{ fontWeight: 700, color: '#374151' }}>:</span>
+      <select style={selStyle} value={parts.m} onChange={e => update('m', e.target.value)}>
+        {MINUTES.map(v => <option key={v} value={v}>{v}</option>)}
+      </select>
+      <select style={selStyle} value={parts.ampm} onChange={e => update('ampm', e.target.value)}>
+        <option value="AM">AM</option>
+        <option value="PM">PM</option>
+      </select>
+    </div>
+  )
+}
 
 export default function PatientDetail() {
   const { id } = useParams()
@@ -112,7 +157,7 @@ export default function PatientDetail() {
                     <div className="tl-dot" style={{ background: STATUS_CONFIG[h.status]?.bg, color: STATUS_CONFIG[h.status]?.dot }}>●</div>
                     <div>
                       <div className="tl-status">{STATUS_CONFIG[h.status]?.label || h.status}</div>
-                      <div className="tl-meta">{format(new Date(h.changed_at), 'MMM d, yyyy')} · {h.changed_by_name || 'System'}</div>
+                      <div className="tl-meta">{format(parseISO(h.changed_at.slice(0,10)), 'MMM d, yyyy')} · {h.changed_by_name || 'System'}</div>
                     </div>
                   </div>
                 ))}
@@ -127,7 +172,7 @@ export default function PatientDetail() {
               <div className="card-header"><h3>Appointments</h3></div>
               <div className="card-body">
                 {patient.appointments?.map(a => (
-                  <AppointmentCard key={a.id} appt={a} onUpdate={async (fields) => {
+                  <AppointmentCard key={a.id} appt={a} consultants={consultants} types={apptTypes} onUpdate={async (fields) => {
                     await window.ipc.invoke('appointments:update', { id: a.id, ...fields })
                     const updated = await window.ipc.invoke('patients:get', { id: patient.id })
                     setPatient(updated)
@@ -199,13 +244,47 @@ function ProfileCard({ patient, editing, lovs, onSave, onCancel }) {
   )
 }
 
-function AppointmentCard({ appt, onUpdate }) {
+function AppointmentCard({ appt, onUpdate, consultants, types }) {
+  const [editing, setEditing] = useState(false)
+  const [form, setForm] = useState({ date: appt.date, time: appt.time, type_id: appt.type_id || '', consultant_id: appt.consultant_id || '', is_last_appointment: appt.is_last_appointment || 0, notes: appt.notes || '', status: appt.status })
   const APPT_STATUS_COLORS = { scheduled:'#eab308', completed:'#3b82f6', no_show:'#f97316', cancelled:'#ef4444' }
+
+  const handleSave = async (e) => {
+    e.preventDefault()
+    await onUpdate(form)
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <div className="appt-card appt-card-editing">
+        <form onSubmit={handleSave}>
+          <div className="field-row-inline">
+            <div className="field"><label>Date *</label><input type="date" value={form.date} onChange={e => setForm(f => ({...f, date: e.target.value}))} required /></div>
+            <div className="field"><label>Time *</label><TimeSelect value={form.time} onChange={v => setForm(f => ({...f, time: v}))} required /></div>
+          </div>
+          <div className="field"><label>Type</label><select value={form.type_id} onChange={e => setForm(f => ({...f, type_id: e.target.value}))}><option value="">— Select —</option>{types.map(t => <option key={t.id} value={t.id}>{t.value}</option>)}</select></div>
+          <div className="field"><label>Consultant</label><select value={form.consultant_id} onChange={e => setForm(f => ({...f, consultant_id: e.target.value}))}><option value="">— Select —</option>{(consultants||[]).filter(c => c.is_active).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+          <div className="field"><label>Status</label><select value={form.status} onChange={e => setForm(f => ({...f, status: e.target.value}))}>{['scheduled','completed','no_show','cancelled'].map(s => <option key={s} value={s}>{s.replace('_',' ')}</option>)}</select></div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, fontSize: 13, color: '#374151', cursor: 'pointer', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>
+            <input type="checkbox" checked={!!form.is_last_appointment} onChange={e => setForm(f => ({...f, is_last_appointment: e.target.checked ? 1 : 0}))} style={{ width: 16, height: 16, margin: 0, flexShrink: 0 }} />
+            Last appointment
+          </label>
+          <div className="field"><label>Notes</label><textarea value={form.notes} onChange={e => setForm(f => ({...f, notes: e.target.value}))} rows={2} /></div>
+          <div className="form-actions">
+            <button type="button" className="btn btn-outline" onClick={() => setEditing(false)}>Cancel</button>
+            <button type="submit" className="btn btn-primary">Save</button>
+          </div>
+        </form>
+      </div>
+    )
+  }
+
   return (
     <div className="appt-card">
       <div className="appt-date-block">
-        <div className="appt-month">{format(new Date(appt.date), 'MMM').toUpperCase()}</div>
-        <div className="appt-day">{format(new Date(appt.date), 'd')}</div>
+        <div className="appt-month">{format(parseISO(appt.date), 'MMM').toUpperCase()}</div>
+        <div className="appt-day">{format(parseISO(appt.date), 'd')}</div>
       </div>
       <div className="appt-info">
         <div className="appt-time">{appt.time} · {appt.type_label || 'N/A'}</div>
@@ -214,9 +293,7 @@ function AppointmentCard({ appt, onUpdate }) {
       </div>
       <div className="appt-right">
         <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20, textTransform:'uppercase', background: APPT_STATUS_COLORS[appt.status]+'22', color: APPT_STATUS_COLORS[appt.status] }}>{appt.status.replace('_',' ')}</span>
-        <select value={appt.status} onChange={e => onUpdate({ status: e.target.value })} className="appt-status-select">
-          {['scheduled','completed','no_show','cancelled'].map(s => <option key={s} value={s}>{s.replace('_',' ')}</option>)}
-        </select>
+        <button className="btn-sm" onClick={() => setEditing(true)}>Edit</button>
       </div>
     </div>
   )
@@ -229,11 +306,14 @@ function AppointmentForm({ consultants, types, onSave, onCancel }) {
       <form onSubmit={e => { e.preventDefault(); onSave(form) }}>
         <div className="field-row-inline">
           <div className="field"><label>Date *</label><input type="date" value={form.date} onChange={e => setForm(f => ({...f, date: e.target.value}))} required /></div>
-          <div className="field"><label>Time *</label><input type="time" value={form.time} onChange={e => setForm(f => ({...f, time: e.target.value}))} required /></div>
+          <div className="field"><label>Time *</label><TimeSelect value={form.time} onChange={v => setForm(f => ({...f, time: v}))} required /></div>
         </div>
         <div className="field"><label>Type</label><select value={form.type_id} onChange={e => setForm(f => ({...f, type_id: e.target.value}))}><option value="">— Select —</option>{types.map(t => <option key={t.id} value={t.id}>{t.value}</option>)}</select></div>
         <div className="field"><label>Consultant</label><select value={form.consultant_id} onChange={e => setForm(f => ({...f, consultant_id: e.target.value}))}><option value="">— Select —</option>{consultants.filter(c => c.is_active).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-        <div className="field"><label><input type="checkbox" checked={!!form.is_last_appointment} onChange={e => setForm(f => ({...f, is_last_appointment: e.target.checked ? 1 : 0}))} /> Last appointment</label></div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, fontSize: 13, color: '#374151', cursor: 'pointer', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>
+          <input type="checkbox" checked={!!form.is_last_appointment} onChange={e => setForm(f => ({...f, is_last_appointment: e.target.checked ? 1 : 0}))} style={{ width: 16, height: 16, margin: 0, flexShrink: 0 }} />
+          Last appointment
+        </label>
         <div className="field"><label>Notes</label><textarea value={form.notes} onChange={e => setForm(f => ({...f, notes: e.target.value}))} rows={2} /></div>
         <div className="form-actions">
           <button type="button" className="btn btn-outline" onClick={onCancel}>Cancel</button>

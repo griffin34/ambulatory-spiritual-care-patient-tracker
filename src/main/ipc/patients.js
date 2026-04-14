@@ -13,7 +13,17 @@ function createPatientHandlers(db) {
     },
 
     async getPatient({ id }) {
-      const patient = db.prepare('SELECT * FROM patients WHERE id = ?').get(id)
+      const patient = db.prepare(`
+        SELECT p.*,
+          rs.value as referral_source,
+          rel.value as religion,
+          lang.value as language
+        FROM patients p
+        LEFT JOIN list_of_values rs ON rs.id = p.referral_source_id
+        LEFT JOIN list_of_values rel ON rel.id = p.religion_id
+        LEFT JOIN list_of_values lang ON lang.id = p.language_id
+        WHERE p.id = ?
+      `).get(id)
       if (!patient) return null
       patient.statusHistory = db.prepare(`
         SELECT h.*, u.name as changed_by_name FROM patient_status_history h
@@ -51,17 +61,32 @@ function createPatientHandlers(db) {
     async updatePatient({ id, ...fields }) {
       const allowed = ['last_name','first_name','middle_name','mrn','phone','date_of_referral','referral_source_id','religion_id','language_id']
       const updates = Object.entries(fields).filter(([k]) => allowed.includes(k))
-      if (!updates.length) return db.prepare('SELECT * FROM patients WHERE id = ?').get(id)
-      const sql = `UPDATE patients SET ${updates.map(([k]) => `${k} = ?`).join(', ')} WHERE id = ?`
-      db.prepare(sql).run(...updates.map(([,v]) => v), id)
-      return db.prepare('SELECT * FROM patients WHERE id = ?').get(id)
+      if (updates.length) {
+        const sql = `UPDATE patients SET ${updates.map(([k]) => `${k} = ?`).join(', ')} WHERE id = ?`
+        db.prepare(sql).run(...updates.map(([,v]) => v), id)
+      }
+      return db.prepare(`
+        SELECT p.*, rs.value as referral_source, rel.value as religion, lang.value as language
+        FROM patients p
+        LEFT JOIN list_of_values rs ON rs.id = p.referral_source_id
+        LEFT JOIN list_of_values rel ON rel.id = p.religion_id
+        LEFT JOIN list_of_values lang ON lang.id = p.language_id
+        WHERE p.id = ?
+      `).get(id)
     },
 
     async transitionStatus({ patientId, status, userId }) {
       db.prepare('UPDATE patients SET current_status = ? WHERE id = ?').run(status, patientId)
       const userExists = userId ? db.prepare('SELECT id FROM users WHERE id = ?').get(userId) : null
       db.prepare('INSERT INTO patient_status_history (patient_id, status, changed_by) VALUES (?, ?, ?)').run(patientId, status, userExists ? userId : null)
-      return db.prepare('SELECT * FROM patients WHERE id = ?').get(patientId)
+      return db.prepare(`
+        SELECT p.*, rs.value as referral_source, rel.value as religion, lang.value as language
+        FROM patients p
+        LEFT JOIN list_of_values rs ON rs.id = p.referral_source_id
+        LEFT JOIN list_of_values rel ON rel.id = p.religion_id
+        LEFT JOIN list_of_values lang ON lang.id = p.language_id
+        WHERE p.id = ?
+      `).get(patientId)
     }
   }
 }

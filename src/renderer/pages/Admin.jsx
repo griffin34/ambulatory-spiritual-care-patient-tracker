@@ -62,8 +62,8 @@ export default function Admin() {
 
           {newUserForm && (
             <form className="inline-form" onSubmit={handleCreateUser}>
-              {[['name','Name'],['email','Email'],['password','Password']].map(([f,l]) => (
-                <div key={f} className="field"><label>{l}</label><input type={f==='password'?'password':f==='email'?'email':'text'} value={newUserForm[f]} onChange={e => setNewUserForm(v => ({...v,[f]:e.target.value}))} required /></div>
+              {[['name','Name'],['email','User ID'],['password','Password']].map(([f,l]) => (
+                <div key={f} className="field"><label>{l}</label><input type={f==='password'?'password':'text'} value={newUserForm[f]} onChange={e => setNewUserForm(v => ({...v,[f]:e.target.value}))} required /></div>
               ))}
               <div className="field"><label>Role</label><select value={newUserForm.role} onChange={e => setNewUserForm(v => ({...v, role:e.target.value}))}><option value="coordinator">Coordinator</option><option value="admin">Admin</option></select></div>
               <div className="form-actions"><button type="button" className="btn btn-outline" onClick={() => setNewUserForm(null)}>Cancel</button><button type="submit" className="btn btn-primary">Create</button></div>
@@ -74,7 +74,7 @@ export default function Admin() {
             {users.map(u => (
               <div key={u.id} className={`user-row${!u.is_active?' inactive':''}`}>
                 <div className="user-avatar" style={{ background: u.is_active ? '#6366f1' : '#9ca3af' }}>{initials(u.name)}</div>
-                <div className="user-info-col"><div className="user-display-name">{u.name}</div><div className="user-email">{u.email}</div></div>
+                <div className="user-info-col"><div className="user-display-name">{u.name}</div><div className="user-email">{u.email}</div></div> {/* u.email is the User ID */}
                 <span className="role-badge" style={ROLE_COLORS[u.role]}>{u.role}</span>
                 <div className={`status-dot status-${u.is_active?'active':'inactive'}`}></div>
                 <div className="user-actions">

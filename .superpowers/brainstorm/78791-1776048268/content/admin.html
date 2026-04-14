@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ambulatory Patients – Admin</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; color: #1a1a2e; display: flex; height: 100vh; overflow: hidden; }
+
+  .sidebar { width: 220px; background: #1a1a2e; color: #fff; display: flex; flex-direction: column; flex-shrink: 0; }
+  .sidebar-logo { padding: 20px 16px 16px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+  .sidebar-logo .app-name { font-size: 13px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: #a0aec0; }
+  .sidebar-logo .app-subtitle { font-size: 11px; color: #718096; margin-top: 2px; }
+  .sidebar-nav { flex: 1; padding: 12px 0; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 16px; font-size: 13px; cursor: pointer; color: #a0aec0; border-left: 3px solid transparent; }
+  .nav-item.active { background: rgba(99,102,241,0.15); color: #fff; border-left-color: #6366f1; }
+  .nav-item.sub { padding-left: 32px; font-size: 12px; }
+  .nav-item.sub.active-sub { color: #c7d2fe; border-left-color: transparent; background: rgba(99,102,241,0.08); }
+  .nav-item .icon { width: 16px; text-align: center; font-size: 14px; }
+  .nav-section { padding: 8px 16px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #4a5568; margin-top: 8px; }
+  .sidebar-footer { padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.1); }
+  .user-info { display: flex; align-items: center; gap: 8px; }
+  .avatar { width: 28px; height: 28px; border-radius: 50%; background: #6366f1; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; }
+  .user-name { font-size: 12px; color: #a0aec0; }
+
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .topbar { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 0 24px; display: flex; align-items: center; height: 56px; gap: 12px; flex-shrink: 0; }
+  .topbar h1 { font-size: 16px; font-weight: 700; color: #1a202c; flex: 1; }
+  .btn { padding: 7px 14px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; }
+  .btn-primary { background: #6366f1; color: #fff; }
+  .btn-sm { padding: 5px 10px; font-size: 12px; border-radius: 5px; cursor: pointer; border: 1px solid #e2e8f0; background: #fff; color: #4a5568; font-weight: 600; }
+  .btn-danger { background: #fff; color: #dc2626; border: 1px solid #fecaca; }
+  .btn-danger:hover { background: #fef2f2; }
+
+  .content { flex: 1; overflow-y: auto; padding: 24px; display: flex; gap: 20px; }
+
+  /* Left panel — Users */
+  .panel { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); overflow: hidden; display: flex; flex-direction: column; }
+  .panel-header { padding: 16px 20px; border-bottom: 1px solid #f0f2f5; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+  .panel-header h2 { font-size: 14px; font-weight: 700; color: #1a202c; }
+  .panel-header .sub { font-size: 12px; color: #718096; margin-top: 2px; }
+  .panel-body { flex: 1; overflow-y: auto; }
+
+  /* User rows */
+  .user-row { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid #f7f8fa; }
+  .user-row:last-child { border-bottom: none; }
+  .user-avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .user-info-col { flex: 1; min-width: 0; }
+  .user-display-name { font-size: 13px; font-weight: 600; color: #1a202c; }
+  .user-email { font-size: 11px; color: #a0aec0; }
+  .role-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 4px; }
+  .role-admin { background: #ede9fe; color: #6d28d9; }
+  .role-coord { background: #f0fdf4; color: #15803d; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .status-active { background: #22c55e; }
+  .status-inactive { background: #d1d5db; }
+  .user-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+  /* LoV panel */
+  .lov-tabs { display: flex; border-bottom: 1px solid #f0f2f5; flex-shrink: 0; }
+  .lov-tab { padding: 10px 16px; font-size: 12px; font-weight: 600; cursor: pointer; color: #718096; border-bottom: 2px solid transparent; }
+  .lov-tab.active { color: #6366f1; border-bottom-color: #6366f1; }
+
+  .lov-body { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+  .lov-toolbar { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid #f7f8fa; flex-shrink: 0; }
+  .lov-input { flex: 1; padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; color: #4a5568; outline: none; }
+  .btn-add { padding: 6px 12px; background: #6366f1; color: #fff; border: none; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+
+  .lov-list { flex: 1; overflow-y: auto; }
+  .lov-item { display: flex; align-items: center; gap: 10px; padding: 9px 16px; border-bottom: 1px solid #f7f8fa; }
+  .lov-item:last-child { border-bottom: none; }
+  .drag-handle { color: #d1d5db; font-size: 14px; cursor: grab; flex-shrink: 0; }
+  .lov-value { flex: 1; font-size: 13px; color: #2d3748; }
+  .lov-inactive { color: #a0aec0; text-decoration: line-through; }
+  .lov-actions { display: flex; gap: 4px; }
+  .icon-btn { background: transparent; border: none; cursor: pointer; padding: 3px 5px; border-radius: 4px; color: #a0aec0; font-size: 13px; }
+  .icon-btn:hover { background: #f0f2f5; color: #4a5568; }
+  .icon-btn.danger:hover { background: #fef2f2; color: #dc2626; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div class="app-name">Ambulatory</div>
+    <div class="app-subtitle">Patient Tracking</div>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-section">Main</div>
+    <div class="nav-item"><span class="icon">☰</span> Work Queue</div>
+    <div class="nav-item"><span class="icon">📅</span> Appointments</div>
+    <div class="nav-item"><span class="icon">📊</span> Reports</div>
+    <div class="nav-section">Admin</div>
+    <div class="nav-item active"><span class="icon">👥</span> Users</div>
+    <div class="nav-item active"><span class="icon">⚙️</span> List of Values</div>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-info">
+      <div class="avatar">MR</div>
+      <div class="user-name">Mary Richards</div>
+    </div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <h1>Admin</h1>
+  </div>
+
+  <div class="content">
+
+    <!-- User Management Panel -->
+    <div class="panel" style="flex:1">
+      <div class="panel-header">
+        <div>
+          <h2>User Management</h2>
+          <div class="sub">5 users · 4 active</div>
+        </div>
+        <button class="btn btn-primary">+ Add User</button>
+      </div>
+      <div class="panel-body">
+
+        <div class="user-row">
+          <div class="user-avatar" style="background:#6366f1">MR</div>
+          <div class="user-info-col">
+            <div class="user-display-name">Mary Richards</div>
+            <div class="user-email">m.richards@hospital.org</div>
+          </div>
+          <span class="role-badge role-admin">Admin</span>
+          <div class="status-dot status-active" title="Active"></div>
+          <div class="user-actions">
+            <button class="btn-sm">Reset PW</button>
+            <button class="btn-sm btn-danger">Deactivate</button>
+          </div>
+        </div>
+
+        <div class="user-row">
+          <div class="user-avatar" style="background:#0ea5e9">SJ</div>
+          <div class="user-info-col">
+            <div class="user-display-name">Sarah Johnson</div>
+            <div class="user-email">s.johnson@hospital.org</div>
+          </div>
+          <span class="role-badge role-admin">Admin</span>
+          <div class="status-dot status-active" title="Active"></div>
+          <div class="user-actions">
+            <button class="btn-sm">Reset PW</button>
+            <button class="btn-sm btn-danger">Deactivate</button>
+          </div>
+        </div>
+
+        <div class="user-row">
+          <div class="user-avatar" style="background:#22c55e">LT</div>
+          <div class="user-info-col">
+            <div class="user-display-name">Lisa Torres</div>
+            <div class="user-email">l.torres@hospital.org</div>
+          </div>
+          <span class="role-badge role-coord">Coordinator</span>
+          <div class="status-dot status-active" title="Active"></div>
+          <div class="user-actions">
+            <button class="btn-sm">Reset PW</button>
+            <button class="btn-sm btn-danger">Deactivate</button>
+          </div>
+        </div>
+
+        <div class="user-row">
+          <div class="user-avatar" style="background:#f59e0b">JP</div>
+          <div class="user-info-col">
+            <div class="user-display-name">James Park</div>
+            <div class="user-email">j.park@hospital.org</div>
+          </div>
+          <span class="role-badge role-coord">Coordinator</span>
+          <div class="status-dot status-active" title="Active"></div>
+          <div class="user-actions">
+            <button class="btn-sm">Reset PW</button>
+            <button class="btn-sm btn-danger">Deactivate</button>
+          </div>
+        </div>
+
+        <div class="user-row" style="opacity:0.6">
+          <div class="user-avatar" style="background:#9ca3af">RB</div>
+          <div class="user-info-col">
+            <div class="user-display-name">Rita Brown</div>
+            <div class="user-email">r.brown@hospital.org</div>
+          </div>
+          <span class="role-badge role-coord">Coordinator</span>
+          <div class="status-dot status-inactive" title="Inactive"></div>
+          <div class="user-actions">
+            <button class="btn-sm">Reset PW</button>
+            <button class="btn-sm" style="color:#15803d;border-color:#bbf7d0">Activate</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- List of Values Panel -->
+    <div class="panel" style="flex:1">
+      <div class="panel-header">
+        <div>
+          <h2>List of Values</h2>
+          <div class="sub">Manage dropdown options used throughout the app</div>
+        </div>
+      </div>
+
+      <div class="lov-tabs">
+        <div class="lov-tab active">Referral Sources</div>
+        <div class="lov-tab">Religions</div>
+        <div class="lov-tab">Languages</div>
+        <div class="lov-tab">Consultants</div>
+        <div class="lov-tab">Appt Types</div>
+      </div>
+
+      <div class="lov-body">
+        <div class="lov-toolbar">
+          <input class="lov-input" type="text" placeholder="Add new referral source…">
+          <button class="btn-add">+ Add</button>
+        </div>
+        <div class="lov-list">
+          <div class="lov-item">
+            <span class="drag-handle">⠿</span>
+            <span class="lov-value">Physician Referral</span>
+            <div class="lov-actions">
+              <button class="icon-btn" title="Edit">✏️</button>
+              <button class="icon-btn danger" title="Deactivate">🗑</button>
+            </div>
+          </div>
+          <div class="lov-item">
+            <span class="drag-handle">⠿</span>
+            <span class="lov-value">Hospital</span>
+            <div class="lov-actions">
+              <button class="icon-btn" title="Edit">✏️</button>
+              <button class="icon-btn danger" title="Deactivate">🗑</button>
+            </div>
+          </div>
+          <div class="lov-item">
+            <span class="drag-handle">⠿</span>
+            <span class="lov-value">Self Referral</span>
+            <div class="lov-actions">
+              <button class="icon-btn" title="Edit">✏️</button>
+              <button class="icon-btn danger" title="Deactivate">🗑</button>
+            </div>
+          </div>
+          <div class="lov-item">
+            <span class="drag-handle">⠿</span>
+            <span class="lov-value">Family Member</span>
+            <div class="lov-actions">
+              <button class="icon-btn" title="Edit">✏️</button>
+              <button class="icon-btn danger" title="Deactivate">🗑</button>
+            </div>
+          </div>
+          <div class="lov-item">
+            <span class="drag-handle">⠿</span>
+            <span class="lov-value">Social Worker</span>
+            <div class="lov-actions">
+              <button class="icon-btn" title="Edit">✏️</button>
+              <button class="icon-btn danger" title="Deactivate">🗑</button>
+            </div>
+          </div>
+          <div class="lov-item">
+            <span class="drag-handle">⠿</span>
+            <span class="lov-value lov-inactive">Hospice Team</span>
+            <div class="lov-actions">
+              <button class="icon-btn" title="Edit">✏️</button>
+              <button class="icon-btn" title="Restore" style="color:#6366f1">↩</button>
+            </div>
+          </div>
+          <div class="lov-item">
+            <span class="drag-handle">⠿</span>
+            <span class="lov-value">Other</span>
+            <div class="lov-actions">
+              <button class="icon-btn" title="Edit">✏️</button>
+              <button class="icon-btn danger" title="Deactivate">🗑</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

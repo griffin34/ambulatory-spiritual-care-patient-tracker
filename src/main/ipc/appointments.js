@@ -10,7 +10,9 @@ function createAppointmentHandlers(db) {
 
     async updateAppointment({ id, ...fields }) {
       const allowed = ['date','time','type_id','consultant_id','is_last_appointment','status','notes']
+      const nullable = ['type_id','consultant_id','notes']
       const updates = Object.entries(fields).filter(([k]) => allowed.includes(k))
+        .map(([k, v]) => [k, nullable.includes(k) ? (v || null) : v])
       if (!updates.length) return db.prepare('SELECT * FROM appointments WHERE id = ?').get(id)
       db.prepare(`UPDATE appointments SET ${updates.map(([k]) => `${k} = ?`).join(', ')} WHERE id = ?`).run(...updates.map(([,v]) => v), id)
       return db.prepare('SELECT * FROM appointments WHERE id = ?').get(id)

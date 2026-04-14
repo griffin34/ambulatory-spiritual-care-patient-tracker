@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ambulatory Patients – Appointments Day View v2</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; color: #1a1a2e; display: flex; height: 100vh; overflow: hidden; }
+
+  .sidebar { width: 220px; background: #1a1a2e; color: #fff; display: flex; flex-direction: column; flex-shrink: 0; }
+  .sidebar-logo { padding: 20px 16px 16px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+  .sidebar-logo .app-name { font-size: 13px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: #a0aec0; }
+  .sidebar-logo .app-subtitle { font-size: 11px; color: #718096; margin-top: 2px; }
+  .sidebar-nav { flex: 1; padding: 12px 0; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 16px; font-size: 13px; cursor: pointer; color: #a0aec0; border-left: 3px solid transparent; }
+  .nav-item.active { background: rgba(99,102,241,0.15); color: #fff; border-left-color: #6366f1; }
+  .nav-item .icon { width: 16px; text-align: center; font-size: 14px; }
+  .nav-section { padding: 8px 16px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #4a5568; margin-top: 8px; }
+  .sidebar-footer { padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.1); }
+  .user-info { display: flex; align-items: center; gap: 8px; }
+  .avatar { width: 28px; height: 28px; border-radius: 50%; background: #6366f1; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; }
+  .user-name { font-size: 12px; color: #a0aec0; }
+
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  .topbar { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 0 24px; display: flex; align-items: center; height: 56px; gap: 12px; flex-shrink: 0; }
+  .topbar h1 { font-size: 16px; font-weight: 700; color: #1a202c; }
+  .topbar-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .btn { padding: 7px 14px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; }
+  .btn-primary { background: #6366f1; color: #fff; }
+  .btn-outline { background: #fff; color: #4a5568; border: 1px solid #e2e8f0; }
+
+  .date-nav { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 12px 24px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .date-nav-arrows { display: flex; gap: 4px; }
+  .arrow-btn { width: 32px; height: 32px; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #4a5568; }
+  .current-date { font-size: 18px; font-weight: 700; color: #1a202c; min-width: 220px; }
+  .date-subtitle { font-size: 12px; color: #718096; }
+  .quick-jumps { margin-left: auto; display: flex; gap: 6px; }
+  .jump-btn { padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid #e2e8f0; background: #fff; color: #4a5568; }
+  .jump-btn.today { background: #6366f1; border-color: #6366f1; color: #fff; }
+
+  .date-strip { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 8px 24px; display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+  .strip-day { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 10px; border-radius: 8px; cursor: pointer; min-width: 44px; }
+  .strip-day.today { background: #6366f1; }
+  .strip-day .dow { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #a0aec0; letter-spacing: 0.04em; }
+  .strip-day.today .dow { color: rgba(255,255,255,0.7); }
+  .strip-day .dom { font-size: 15px; font-weight: 700; color: #2d3748; }
+  .strip-day.today .dom { color: #fff; }
+  .strip-day.past .dom { color: #a0aec0; }
+  .appt-dot { width: 5px; height: 5px; border-radius: 50%; background: #6366f1; }
+  .strip-day.today .appt-dot { background: rgba(255,255,255,0.8); }
+  .strip-day.past .appt-dot { background: #cbd5e0; }
+
+  .content { flex: 1; overflow-y: auto; padding: 20px 24px; }
+
+  .day-summary { display: flex; gap: 12px; margin-bottom: 20px; }
+  .summary-chip { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 16px; display: flex; align-items: center; gap: 8px; }
+  .summary-chip .count { font-size: 20px; font-weight: 700; color: #1a202c; }
+  .summary-chip .label { font-size: 11px; color: #718096; font-weight: 500; }
+  .summary-chip .dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  /* List-based layout */
+  .time-group { margin-bottom: 8px; }
+  .time-header {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 6px;
+  }
+  .time-label-big { font-size: 12px; font-weight: 700; color: #718096; width: 68px; flex-shrink: 0; text-align: right; padding-right: 12px; border-right: 2px solid #e2e8f0; }
+  .appt-row { display: flex; gap: 8px; margin-bottom: 6px; align-items: stretch; }
+  .appt-row-time { width: 68px; flex-shrink: 0; padding-right: 12px; border-right: 2px solid #e2e8f0; display: flex; align-items: flex-start; justify-content: flex-end; padding-top: 10px; }
+  .appt-row-time span { font-size: 11px; font-weight: 700; color: #a0aec0; }
+  .appt-row-time.first span { color: #4a5568; }
+  .appt-cards { flex: 1; display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .appt-card {
+    flex: 1; min-width: 160px; max-width: calc(20% - 8px);
+    border-radius: 8px; padding: 10px 12px; border-left: 4px solid;
+    cursor: pointer; transition: box-shadow 0.15s;
+  }
+  .appt-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+  .appt-card.scheduled { background: #fefce8; border-left-color: #eab308; }
+  .appt-card.completed { background: #eff6ff; border-left-color: #3b82f6; }
+  .appt-card.noshow { background: #fff7ed; border-left-color: #f97316; }
+  .appt-card.cancelled { background: #fef2f2; border-left-color: #ef4444; }
+
+  .ac-name { font-size: 13px; font-weight: 700; color: #1a202c; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ac-consultant { font-size: 11px; color: #718096; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ac-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+  .ac-tag { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; }
+  .ac-tag.telemed { background: #e0e7ff; color: #4338ca; }
+  .ac-tag.video { background: #d1fae5; color: #065f46; }
+  .ac-tag.last { background: #fdf4ff; color: #7e22ce; }
+  .ac-tag.status-scheduled { background: #fef9c3; color: #a16207; }
+  .ac-tag.status-completed { background: #dbeafe; color: #1d4ed8; }
+  .ac-tag.status-noshow { background: #ffedd5; color: #c2410c; }
+  .ac-tag.status-cancelled { background: #fee2e2; color: #dc2626; }
+
+  .time-divider { height: 1px; background: #f0f2f5; margin: 12px 0 12px 80px; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div class="app-name">Ambulatory</div>
+    <div class="app-subtitle">Patient Tracking</div>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-section">Main</div>
+    <div class="nav-item"><span class="icon">☰</span> Work Queue</div>
+    <div class="nav-item active"><span class="icon">📅</span> Appointments</div>
+    <div class="nav-item"><span class="icon">📊</span> Reports</div>
+    <div class="nav-section">Admin</div>
+    <div class="nav-item"><span class="icon">👥</span> Users</div>
+    <div class="nav-item"><span class="icon">⚙️</span> List of Values</div>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-info">
+      <div class="avatar">MR</div>
+      <div class="user-name">Mary Richards</div>
+    </div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <h1>Appointments</h1>
+    <div class="topbar-actions">
+      <button class="btn btn-outline">Export</button>
+      <button class="btn btn-primary">+ Add Appointment</button>
+    </div>
+  </div>
+
+  <div class="date-nav">
+    <div class="date-nav-arrows">
+      <button class="arrow-btn">‹</button>
+      <button class="arrow-btn">›</button>
+    </div>
+    <div>
+      <div class="current-date">Monday, April 13, 2026</div>
+      <div class="date-subtitle">11 appointments today</div>
+    </div>
+    <div class="quick-jumps">
+      <button class="jump-btn">-14 Days</button>
+      <button class="jump-btn today">Today</button>
+    </div>
+  </div>
+
+  <div class="date-strip">
+    <div class="strip-day past"><span class="dow">MON</span><span class="dom">6</span></div>
+    <div class="strip-day past"><span class="dow">TUE</span><span class="dom">7</span><div class="appt-dot"></div></div>
+    <div class="strip-day past"><span class="dow">WED</span><span class="dom">8</span><div class="appt-dot"></div></div>
+    <div class="strip-day past"><span class="dow">THU</span><span class="dom">9</span></div>
+    <div class="strip-day past"><span class="dow">FRI</span><span class="dom">10</span><div class="appt-dot"></div></div>
+    <div class="strip-day past"><span class="dow">SAT</span><span class="dom">11</span></div>
+    <div class="strip-day past"><span class="dow">SUN</span><span class="dom">12</span><div class="appt-dot"></div></div>
+    <div class="strip-day today"><span class="dow">MON</span><span class="dom">13</span><div class="appt-dot"></div></div>
+    <div class="strip-day"><span class="dow">TUE</span><span class="dom">14</span><div class="appt-dot"></div></div>
+    <div class="strip-day"><span class="dow">WED</span><span class="dom">15</span><div class="appt-dot"></div></div>
+    <div class="strip-day"><span class="dow">THU</span><span class="dom">16</span></div>
+    <div class="strip-day"><span class="dow">FRI</span><span class="dom">17</span><div class="appt-dot"></div></div>
+    <div class="strip-day"><span class="dow">SAT</span><span class="dom">18</span></div>
+    <div class="strip-day"><span class="dow">SUN</span><span class="dom">19</span></div>
+    <div class="strip-day"><span class="dow">MON</span><span class="dom">20</span><div class="appt-dot"></div></div>
+    <div class="strip-day"><span class="dow">TUE</span><span class="dom">21</span><div class="appt-dot"></div></div>
+  </div>
+
+  <div class="content">
+
+    <div class="day-summary">
+      <div class="summary-chip"><div class="dot" style="background:#eab308"></div><span class="count">7</span><span class="label">Scheduled</span></div>
+      <div class="summary-chip"><div class="dot" style="background:#3b82f6"></div><span class="count">2</span><span class="label">Completed</span></div>
+      <div class="summary-chip"><div class="dot" style="background:#f97316"></div><span class="count">1</span><span class="label">No Show</span></div>
+      <div class="summary-chip"><div class="dot" style="background:#ef4444"></div><span class="count">1</span><span class="label">Cancelled</span></div>
+    </div>
+
+    <!-- 9:00 AM — 2 appointments -->
+    <div class="appt-row">
+      <div class="appt-row-time first"><span>9:00 AM</span></div>
+      <div class="appt-cards">
+        <div class="appt-card completed">
+          <div class="ac-name">Williams, James R.</div>
+          <div class="ac-consultant">Sr. Patricia Walsh</div>
+          <div class="ac-tags"><span class="ac-tag video">Video</span><span class="ac-tag status-completed">Completed</span></div>
+        </div>
+        <div class="appt-card noshow">
+          <div class="ac-name">Chen, Linda W.</div>
+          <div class="ac-consultant">Deacon Mark Torres</div>
+          <div class="ac-tags"><span class="ac-tag telemed">Telemed</span><span class="ac-tag status-noshow">No Show</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="time-divider"></div>
+
+    <!-- 10:00 AM — 5 appointments -->
+    <div class="appt-row">
+      <div class="appt-row-time first"><span>10:00 AM</span></div>
+      <div class="appt-cards">
+        <div class="appt-card scheduled">
+          <div class="ac-name">Anderson, Margaret L.</div>
+          <div class="ac-consultant">Sr. Patricia Walsh</div>
+          <div class="ac-tags"><span class="ac-tag telemed">Telemed</span><span class="ac-tag last">★ Last</span><span class="ac-tag status-scheduled">Scheduled</span></div>
+        </div>
+        <div class="appt-card scheduled">
+          <div class="ac-name">Martinez, Carlos J.</div>
+          <div class="ac-consultant">Deacon Mark Torres</div>
+          <div class="ac-tags"><span class="ac-tag video">Video</span><span class="ac-tag status-scheduled">Scheduled</span></div>
+        </div>
+        <div class="appt-card scheduled">
+          <div class="ac-name">Patel, Priya S.</div>
+          <div class="ac-consultant">Sr. Anne Marie</div>
+          <div class="ac-tags"><span class="ac-tag telemed">Telemed</span><span class="ac-tag status-scheduled">Scheduled</span></div>
+        </div>
+        <div class="appt-card cancelled">
+          <div class="ac-name">Kowalski, Robert A.</div>
+          <div class="ac-consultant">Sr. Patricia Walsh</div>
+          <div class="ac-tags"><span class="ac-tag telemed">Telemed</span><span class="ac-tag status-cancelled">Cancelled</span></div>
+        </div>
+        <div class="appt-card completed">
+          <div class="ac-name">Thompson, Dorothy M.</div>
+          <div class="ac-consultant">Deacon Mark Torres</div>
+          <div class="ac-tags"><span class="ac-tag video">Video</span><span class="ac-tag status-completed">Completed</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="time-divider"></div>
+
+    <!-- 2:00 PM — 3 appointments -->
+    <div class="appt-row">
+      <div class="appt-row-time first"><span>2:00 PM</span></div>
+      <div class="appt-cards">
+        <div class="appt-card scheduled">
+          <div class="ac-name">O'Brien, Catherine F.</div>
+          <div class="ac-consultant">Sr. Patricia Walsh</div>
+          <div class="ac-tags"><span class="ac-tag video">Video</span><span class="ac-tag status-scheduled">Scheduled</span></div>
+        </div>
+        <div class="appt-card scheduled">
+          <div class="ac-name">Nguyen, Thomas B.</div>
+          <div class="ac-consultant">Sr. Anne Marie</div>
+          <div class="ac-tags"><span class="ac-tag telemed">Telemed</span><span class="ac-tag last">★ Last</span><span class="ac-tag status-scheduled">Scheduled</span></div>
+        </div>
+        <div class="appt-card scheduled">
+          <div class="ac-name">Rodriguez, Maria E.</div>
+          <div class="ac-consultant">Deacon Mark Torres</div>
+          <div class="ac-tags"><span class="ac-tag video">Video</span><span class="ac-tag status-scheduled">Scheduled</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3:30 PM — 1 appointment -->
+    <div class="time-divider"></div>
+    <div class="appt-row">
+      <div class="appt-row-time first"><span>3:30 PM</span></div>
+      <div class="appt-cards">
+        <div class="appt-card scheduled">
+          <div class="ac-name">Garza, Patricia L.</div>
+          <div class="ac-consultant">Sr. Patricia Walsh</div>
+          <div class="ac-tags"><span class="ac-tag telemed">Telemed</span><span class="ac-tag status-scheduled">Scheduled</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

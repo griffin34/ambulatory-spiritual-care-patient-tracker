@@ -1,0 +1,9 @@
+{"type":"server-started","port":53728,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:53728","screen_dir":"/Users/jgriffin/dev/ambulatory-patients/.superpowers/brainstorm/78791-1776048268/content","state_dir":"/Users/jgriffin/dev/ambulatory-patients/.superpowers/brainstorm/78791-1776048268/state"}
+{"type":"screen-added","file":"/Users/jgriffin/dev/ambulatory-patients/.superpowers/brainstorm/78791-1776048268/content/work-queue.html"}
+{"type":"screen-added","file":"/Users/jgriffin/dev/ambulatory-patients/.superpowers/brainstorm/78791-1776048268/content/patient-detail.html"}
+{"type":"screen-added","file":"/Users/jgriffin/dev/ambulatory-patients/.superpowers/brainstorm/78791-1776048268/content/appointments-day-view.html"}
+{"type":"screen-added","file":"/Users/jgriffin/dev/ambulatory-patients/.superpowers/brainstorm/78791-1776048268/content/appointments-day-v2.html"}
+{"type":"screen-added","file":"/Users/jgriffin/dev/ambulatory-patients/.superpowers/brainstorm/78791-1776048268/content/reports.html"}
+{"type":"screen-added","file":"/Users/jgriffin/dev/ambulatory-patients/.superpowers/brainstorm/78791-1776048268/content/reports-v2.html"}
+{"type":"screen-added","file":"/Users/jgriffin/dev/ambulatory-patients/.superpowers/brainstorm/78791-1776048268/content/admin.html"}
+{"type":"server-stopped","reason":"idle timeout"}

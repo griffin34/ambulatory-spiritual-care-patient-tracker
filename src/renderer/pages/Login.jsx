@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 
 export default function Login() {
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState('') // stored as 'email' in DB, displayed as User ID
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -30,8 +30,8 @@ export default function Login() {
         <form onSubmit={handleSubmit}>
           {error && <div className="login-error">{error}</div>}
           <div className="field">
-            <label>Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus />
+            <label>User ID</label>
+            <input type="text" value={email} onChange={e => setEmail(e.target.value)} required autoFocus autoComplete="username" />
           </div>
           <div className="field">
             <label>Password</label>

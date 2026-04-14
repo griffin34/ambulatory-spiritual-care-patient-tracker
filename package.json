@@ -4,7 +4,7 @@
   "description": "",
   "main": "src/main/index.js",
   "scripts": {
-    "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && NODE_ENV=development electron .\"",
     "build:renderer": "vite build",
     "build": "npm run build:renderer && electron-builder",
     "test": "vitest run tests/main"

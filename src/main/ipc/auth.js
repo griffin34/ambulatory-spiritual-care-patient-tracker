@@ -12,6 +12,8 @@ function createAuthHandlers(db) {
     },
 
     async createFirstAdmin({ name, email, password }) {
+      const existing = db.prepare('SELECT COUNT(*) as n FROM users').get().n
+      if (existing > 0) throw new Error('Setup already complete. Please log in.')
       const hash = bcrypt.hashSync(password, 10)
       const { lastInsertRowid } = db.prepare(
         'INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)'

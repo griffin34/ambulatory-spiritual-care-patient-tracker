@@ -15,8 +15,8 @@ export default function Appointments() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    const from = format(subDays(new Date(date), 14), 'yyyy-MM-dd')
-    const to = format(addDays(new Date(date), 14), 'yyyy-MM-dd')
+    const from = format(subDays(parseISO(date), 14), 'yyyy-MM-dd')
+    const to = format(addDays(parseISO(date), 14), 'yyyy-MM-dd')
     window.ipc.invoke('appointments:daysWithAppointments', { from, to }).then(setDaysWithAppts)
   }, [date])
 
@@ -29,7 +29,7 @@ export default function Appointments() {
   }, [date])
 
   const stripDays = Array.from({ length: 16 }, (_, i) => {
-    const d = format(addDays(subDays(new Date(date), 7), i), 'yyyy-MM-dd')
+    const d = format(addDays(subDays(parseISO(date), 7), i), 'yyyy-MM-dd')
     return { date: d, hasAppts: daysWithAppts.includes(d), isToday: d === format(new Date(), 'yyyy-MM-dd'), isCurrent: d === date }
   })
 
@@ -54,15 +54,15 @@ export default function Appointments() {
 
       <div className="date-nav">
         <div className="date-nav-arrows">
-          <button className="arrow-btn" onClick={() => setDate(format(subDays(new Date(date), 1), 'yyyy-MM-dd'))}>‹</button>
-          <button className="arrow-btn" onClick={() => setDate(format(addDays(new Date(date), 1), 'yyyy-MM-dd'))}>›</button>
+          <button className="arrow-btn" onClick={() => setDate(format(subDays(parseISO(date), 1), 'yyyy-MM-dd'))}>‹</button>
+          <button className="arrow-btn" onClick={() => setDate(format(addDays(parseISO(date), 1), 'yyyy-MM-dd'))}>›</button>
         </div>
         <div>
           <div className="current-date">{format(parseISO(date), 'EEEE, MMMM d, yyyy')}</div>
           <div className="date-subtitle">{appointments.length} appointment{appointments.length !== 1 ? 's' : ''}</div>
         </div>
         <div className="quick-jumps">
-          <button className="jump-btn" onClick={() => setDate(format(subDays(new Date(), 14), 'yyyy-MM-dd'))}>-14 Days</button>
+          <button className="jump-btn" onClick={() => setDate(format(subDays(new Date(), 14), 'yyyy-MM-dd'))}>−14 Days</button>
           <button className="jump-btn today" onClick={() => setDate(format(new Date(), 'yyyy-MM-dd'))}>Today</button>
         </div>
       </div>
