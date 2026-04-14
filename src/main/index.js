@@ -34,6 +34,9 @@ app.whenReady().then(() => {
   registerReports(ipcMain)
   registerAdmin(ipcMain)
   registerExcel(ipcMain)
+  const { dialog } = require('electron')
+  ipcMain.handle('dialog:showSaveDialog', (_, args) => dialog.showSaveDialog(args))
+  ipcMain.handle('dialog:showOpenDialog', (_, args) => dialog.showOpenDialog(args))
   createWindow()
 })
 
