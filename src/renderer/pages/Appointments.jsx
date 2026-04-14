@@ -95,7 +95,7 @@ export default function Appointments() {
             <div className="appt-row-time"><span>{format(new Date(`2000-01-01T${time}`), 'h:mm a')}</span></div>
             <div className="appt-cards">
               {grouped[time].map(a => (
-                <div key={a.id} className="appt-card" style={{ borderLeftColor: APPT_STATUS[a.status].border, background: APPT_STATUS[a.status].bg }}>
+                <div key={a.id} className="day-appt-card" style={{ borderLeftColor: APPT_STATUS[a.status].border, background: APPT_STATUS[a.status].bg }}>
                   <div className="ac-name">{a.last_name}, {a.first_name}</div>
                   <div className="ac-consultant">{a.consultant_name || 'Unassigned'}</div>
                   <div className="ac-tags">

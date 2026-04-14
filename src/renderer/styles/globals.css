@@ -185,7 +185,7 @@ tbody tr:last-child td { border-bottom: none; }
 .appt-row { display: flex; gap: 16px; margin-bottom: 8px; }
 .appt-row-time { width: 70px; flex-shrink: 0; padding-top: 12px; font-size: 12px; font-weight: 600; color: var(--muted); text-align: right; }
 .appt-cards { flex: 1; display: flex; gap: 10px; flex-wrap: wrap; }
-.appt-card { background: #fff; border-left: 3px solid; border-radius: 10px; padding: 12px 14px; min-width: 200px; flex: 1; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+.day-appt-card { background: #fff; border-left: 3px solid; border-radius: 10px; padding: 12px 14px; min-width: 200px; flex: 1; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
 .ac-name { font-size: 13px; font-weight: 700; color: #1a1a2e; }
 .ac-consultant { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .ac-tags { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; }
