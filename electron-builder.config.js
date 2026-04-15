@@ -6,5 +6,9 @@ module.exports = {
   win: {
     target: [{ target: 'portable', arch: ['x64'] }],
     icon: 'assets/icon.ico'
+  },
+  mac: {
+    target: [{ target: 'dmg', arch: ['x64', 'arm64'] }],
+    category: 'public.app-category.healthcare'
   }
 }
