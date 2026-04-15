@@ -75,16 +75,21 @@ function createExcelHandlers(db) {
         db.prepare("SELECT mrn FROM patients WHERE mrn IS NOT NULL AND mrn != ''").all().map(r => r.mrn)
       )
 
-      // Group rows by patient key: MRN if present, else "last_name::first_name"
+      // Group rows by patient key: prefixed MRN if present, else name-based key
       const patientGroups = new Map()
       for (const row of rows) {
         const last = (row.last_name || '').trim()
         const first = (row.first_name || '').trim()
         if (!last || !first) continue
         const mrn = (row.mrn || '').trim()
-        const key = mrn || `${last.toLowerCase()}::${first.toLowerCase()}`
+        const key = mrn ? `mrn::${mrn}` : `name::${last.toLowerCase()}::${first.toLowerCase()}`
         if (!patientGroups.has(key)) patientGroups.set(key, { mrn, rows: [] })
         patientGroups.get(key).rows.push(row)
+      }
+
+      const resolveLoV = (category, value) => {
+        if (!value || !value.trim()) return null
+        return lovIndex[`${category}::${value.trim().toLowerCase()}`] ?? null
       }
 
       const insertPatient = db.prepare(`
@@ -115,11 +120,6 @@ function createExcelHandlers(db) {
 
           const firstRow = group.rows[0]
           const lastRow = group.rows[group.rows.length - 1]
-
-          const resolveLoV = (category, value) => {
-            if (!value || !value.trim()) return null
-            return lovIndex[`${category}::${value.trim().toLowerCase()}`] ?? null
-          }
 
           const rawStatus = (lastRow.current_status || '').trim().toLowerCase()
           const current_status = VALID_STATUSES.has(rawStatus) ? rawStatus : 'ready_to_schedule'
