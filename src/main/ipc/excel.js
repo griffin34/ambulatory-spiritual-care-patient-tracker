@@ -78,18 +78,20 @@ function createExcelHandlers(db) {
       // Group rows by patient key: prefixed MRN if present, else name-based key
       const patientGroups = new Map()
       for (const row of rows) {
-        const last = (row.last_name || '').trim()
-        const first = (row.first_name || '').trim()
+        const last = String(row.last_name || '').trim()
+        const first = String(row.first_name || '').trim()
         if (!last || !first) continue
-        const mrn = (row.mrn || '').trim()
+        const mrn = String(row.mrn || '').trim()
         const key = mrn ? `mrn::${mrn}` : `name::${last.toLowerCase()}::${first.toLowerCase()}`
         if (!patientGroups.has(key)) patientGroups.set(key, { mrn, rows: [] })
         patientGroups.get(key).rows.push(row)
       }
 
       const resolveLoV = (category, value) => {
-        if (!value || !value.trim()) return null
-        return lovIndex[`${category}::${value.trim().toLowerCase()}`] ?? null
+        if (!value) return null
+        const s = String(value).trim()
+        if (!s) return null
+        return lovIndex[`${category}::${s.toLowerCase()}`] ?? null
       }
 
       const insertPatient = db.prepare(`
@@ -121,16 +123,18 @@ function createExcelHandlers(db) {
           const firstRow = group.rows[0]
           const lastRow = group.rows[group.rows.length - 1]
 
-          const rawStatus = (lastRow.current_status || '').trim().toLowerCase()
+          const str = (v) => String(v || '').trim()
+
+          const rawStatus = str(lastRow.current_status).toLowerCase()
           const current_status = VALID_STATUSES.has(rawStatus) ? rawStatus : 'ready_to_schedule'
 
           const { lastInsertRowid: patientId } = insertPatient.run(
-            firstRow.last_name.trim(),
-            firstRow.first_name.trim(),
-            (firstRow.middle_name || '').trim() || null,
+            str(firstRow.last_name),
+            str(firstRow.first_name),
+            str(firstRow.middle_name) || null,
             group.mrn || null,
-            (firstRow.phone || '').trim() || null,
-            (firstRow.date_of_referral || '').trim() || null,
+            str(firstRow.phone) || null,
+            str(firstRow.date_of_referral) || null,
             resolveLoV('referral_source', firstRow.referral_source),
             resolveLoV('religion', firstRow.religion),
             resolveLoV('language', firstRow.language),
@@ -141,16 +145,16 @@ function createExcelHandlers(db) {
           patients_imported++
 
           for (const row of group.rows) {
-            const apptDate = (row.appt_date || '').trim()
+            const apptDate = str(row.appt_date)
             if (!apptDate) continue
 
-            const apptTime = (row.appt_time || '').trim() || '00:00'
+            const apptTime = str(row.appt_time) || '00:00'
             const typeId = resolveLoV('appointment_type', row.appt_type)
-            const consultantId = consultantIndex[(row.consultant || '').trim().toLowerCase()] ?? null
-            const isLast = (row.is_last_appointment || '').trim().toLowerCase() === 'yes' ? 1 : 0
-            const rawApptStatus = (row.appt_status || '').trim().toLowerCase()
+            const consultantId = consultantIndex[str(row.consultant).toLowerCase()] ?? null
+            const isLast = str(row.is_last_appointment).toLowerCase() === 'yes' ? 1 : 0
+            const rawApptStatus = str(row.appt_status).toLowerCase()
             const apptStatus = VALID_APPT_STATUSES.has(rawApptStatus) ? rawApptStatus : 'scheduled'
-            const notes = (row.notes || '').trim() || null
+            const notes = str(row.notes) || null
 
             insertAppt.run(patientId, apptDate, apptTime, typeId, consultantId, isLast, apptStatus, notes)
             appointments_imported++

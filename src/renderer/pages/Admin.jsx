@@ -64,13 +64,13 @@ export default function Admin() {
     let patientCount = 0
     let apptCount = 0
     for (const row of rows) {
-      const last = (row.last_name || '').trim()
-      const first = (row.first_name || '').trim()
+      const last = String(row.last_name || '').trim()
+      const first = String(row.first_name || '').trim()
       if (!last || !first) continue
-      const mrn = (row.mrn || '').trim()
-      const key = mrn || `${last.toLowerCase()}::${first.toLowerCase()}`
+      const mrn = String(row.mrn || '').trim()
+      const key = mrn ? `mrn::${mrn}` : `name::${last.toLowerCase()}::${first.toLowerCase()}`
       if (!seen.has(key)) { seen.add(key); patientCount++ }
-      if ((row.appt_date || '').trim()) apptCount++
+      if (String(row.appt_date || '').trim()) apptCount++
     }
 
     setImportPreview({ rows, patientCount, apptCount })
