@@ -13,16 +13,21 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Install dependencies
         run: npm install
 
-      - name: Build
-        run: npm run build
+      - name: Build renderer
+        run: npm run build:renderer
+
+      - name: Package with electron-builder
+        run: npx electron-builder --win --publish never
+        env:
+          DEBUG: electron-builder
 
       - name: List release directory
-        run: dir release
+        run: dir release /s /b
         shell: cmd
         continue-on-error: true
 
@@ -40,15 +45,19 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Install dependencies
         run: npm install
 
-      - name: Build
-        run: npm run build
+      - name: Build renderer
+        run: npm run build:renderer
+
+      - name: Package with electron-builder
+        run: npx electron-builder --mac --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
+          DEBUG: electron-builder
 
       - name: List release directory
         run: ls -la release/ || echo "release/ not found"
