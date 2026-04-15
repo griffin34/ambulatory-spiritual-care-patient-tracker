@@ -1,13 +1,13 @@
 {
   "name": "ambulatory-patients",
   "version": "1.0.0",
-  "description": "",
+  "description": "Ambulatory spiritual care patient tracker",
   "main": "src/main/index.js",
   "scripts": {
     "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && NODE_ENV=development electron .\"",
     "rebuild:electron": "node_modules/.bin/electron-rebuild -f -w better-sqlite3",
     "build:renderer": "vite build",
-    "build": "npm run build:renderer && electron-builder",
+    "build": "npm run build:renderer && electron-builder --publish never",
     "test": "vitest run tests/main"
   },
   "keywords": [],
@@ -21,7 +21,6 @@
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.9.0",
     "date-fns": "^4.1.0",
-    "electron": "^41.2.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-router-dom": "^7.14.1",
@@ -32,6 +31,7 @@
     "@testing-library/react": "^16.3.2",
     "@vitejs/plugin-react": "^6.0.1",
     "concurrently": "^9.2.1",
+    "electron": "^41.2.0",
     "electron-builder": "^26.8.1",
     "jsdom": "^29.0.2",
     "vite": "^8.0.8",
