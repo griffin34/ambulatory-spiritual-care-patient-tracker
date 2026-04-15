@@ -52,6 +52,116 @@ function createExcelHandlers(db) {
       return { imported }
     },
 
+    'excel:importHistorical': (_, { rows }) => {
+      const VALID_STATUSES = new Set(['ready_to_schedule', 'scheduled', 'completed', 'dropped', 'on_hold'])
+      const VALID_APPT_STATUSES = new Set(['scheduled', 'completed', 'no_show', 'cancelled', 'rescheduled'])
+
+      // Load LoV and consultants once for resolution
+      const lovRows = db.prepare('SELECT id, category, value FROM list_of_values WHERE is_active = 1').all()
+      const lovIndex = {}
+      for (const lov of lovRows) {
+        const key = `${lov.category}::${lov.value.toLowerCase()}`
+        lovIndex[key] = lov.id
+      }
+
+      const consultantRows = db.prepare('SELECT id, name FROM consultants WHERE is_active = 1').all()
+      const consultantIndex = {}
+      for (const c of consultantRows) {
+        consultantIndex[c.name.toLowerCase()] = c.id
+      }
+
+      // Check which MRNs already exist
+      const existingMrns = new Set(
+        db.prepare("SELECT mrn FROM patients WHERE mrn IS NOT NULL AND mrn != ''").all().map(r => r.mrn)
+      )
+
+      // Group rows by patient key: MRN if present, else "last_name::first_name"
+      const patientGroups = new Map()
+      for (const row of rows) {
+        const last = (row.last_name || '').trim()
+        const first = (row.first_name || '').trim()
+        if (!last || !first) continue
+        const mrn = (row.mrn || '').trim()
+        const key = mrn || `${last.toLowerCase()}::${first.toLowerCase()}`
+        if (!patientGroups.has(key)) patientGroups.set(key, { mrn, rows: [] })
+        patientGroups.get(key).rows.push(row)
+      }
+
+      const insertPatient = db.prepare(`
+        INSERT INTO patients (last_name, first_name, middle_name, mrn, phone, date_of_referral,
+          referral_source_id, religion_id, language_id, current_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      const insertHistory = db.prepare(`
+        INSERT INTO patient_status_history (patient_id, status, changed_by) VALUES (?, ?, NULL)
+      `)
+      const insertAppt = db.prepare(`
+        INSERT INTO appointments (patient_id, date, time, type_id, consultant_id,
+          is_last_appointment, status, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+
+      let patients_imported = 0
+      let patients_skipped = 0
+      let appointments_imported = 0
+
+      const run = db.transaction(() => {
+        for (const [, group] of patientGroups) {
+          // Skip if MRN already in DB
+          if (group.mrn && existingMrns.has(group.mrn)) {
+            patients_skipped++
+            continue
+          }
+
+          const firstRow = group.rows[0]
+          const lastRow = group.rows[group.rows.length - 1]
+
+          const resolveLoV = (category, value) => {
+            if (!value || !value.trim()) return null
+            return lovIndex[`${category}::${value.trim().toLowerCase()}`] ?? null
+          }
+
+          const rawStatus = (lastRow.current_status || '').trim().toLowerCase()
+          const current_status = VALID_STATUSES.has(rawStatus) ? rawStatus : 'ready_to_schedule'
+
+          const { lastInsertRowid: patientId } = insertPatient.run(
+            firstRow.last_name.trim(),
+            firstRow.first_name.trim(),
+            (firstRow.middle_name || '').trim() || null,
+            group.mrn || null,
+            (firstRow.phone || '').trim() || null,
+            (firstRow.date_of_referral || '').trim() || null,
+            resolveLoV('referral_source', firstRow.referral_source),
+            resolveLoV('religion', firstRow.religion),
+            resolveLoV('language', firstRow.language),
+            current_status
+          )
+
+          insertHistory.run(patientId, current_status)
+          patients_imported++
+
+          for (const row of group.rows) {
+            const apptDate = (row.appt_date || '').trim()
+            if (!apptDate) continue
+
+            const apptTime = (row.appt_time || '').trim() || '00:00'
+            const typeId = resolveLoV('appointment_type', row.appt_type)
+            const consultantId = consultantIndex[(row.consultant || '').trim().toLowerCase()] ?? null
+            const isLast = (row.is_last_appointment || '').trim().toLowerCase() === 'yes' ? 1 : 0
+            const rawApptStatus = (row.appt_status || '').trim().toLowerCase()
+            const apptStatus = VALID_APPT_STATUSES.has(rawApptStatus) ? rawApptStatus : 'scheduled'
+            const notes = (row.notes || '').trim() || null
+
+            insertAppt.run(patientId, apptDate, apptTime, typeId, consultantId, isLast, apptStatus, notes)
+            appointments_imported++
+          }
+        }
+      })
+
+      run()
+      return { patients_imported, patients_skipped, appointments_imported }
+    },
+
     'excel:exportReport': (_, { filePath, rows, sheetName }) => {
       const ws = xlsx.utils.json_to_sheet(rows)
       const wb = xlsx.utils.book_new()
