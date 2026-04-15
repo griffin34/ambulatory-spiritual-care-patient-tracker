@@ -302,7 +302,7 @@ tbody tr:last-child td { border-bottom: none; }
 .import-count-num {
   font-size: 28px;
   font-weight: 700;
-  color: var(--primary, #6366f1);
+  color: var(--accent);
   line-height: 1;
 }
 
