@@ -22,12 +22,14 @@ jobs:
         run: npm run build:renderer
 
       - name: Package with electron-builder
-        run: npx electron-builder --win --publish never
+        run: npx electron-builder --win --publish never --config electron-builder.config.js
         env:
           DEBUG: electron-builder
 
-      - name: List release directory
-        run: dir release /s /b
+      - name: List output directories
+        run: |
+          if exist release (dir release /s /b) else echo "release/ not found"
+          if exist dist (dir dist /s /b) else echo "dist/ not found"
         shell: cmd
         continue-on-error: true
 
@@ -54,13 +56,13 @@ jobs:
         run: npm run build:renderer
 
       - name: Package with electron-builder
-        run: npx electron-builder --mac --publish never
+        run: npx electron-builder --mac --publish never --config electron-builder.config.js
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
           DEBUG: electron-builder
 
-      - name: List release directory
-        run: ls -la release/ || echo "release/ not found"
+      - name: List output directories
+        run: ls -la release/ 2>/dev/null || echo "release/ not found"; ls -la dist/ 2>/dev/null || echo "dist/ not found"
         continue-on-error: true
 
       - name: Upload macOS installer
