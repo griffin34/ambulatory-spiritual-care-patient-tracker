@@ -139,6 +139,7 @@ tbody tr:last-child td { border-bottom: none; }
 .appt-card { display: flex; align-items: flex-start; gap: 14px; padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
 .appt-card:last-child { border-bottom: none; }
 .appt-date-block { text-align: center; width: 40px; flex-shrink: 0; }
+.appt-seq { font-size: 12px; font-weight: 800; color: var(--accent); letter-spacing: 0.02em; margin-bottom: 2px; }
 .appt-month { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
 .appt-day { font-size: 22px; font-weight: 800; color: #1a1a2e; line-height: 1; }
 .appt-info { flex: 1; }
@@ -229,6 +230,10 @@ tbody tr:last-child td { border-bottom: none; }
 .lov-item:hover { background: #f8fafc; }
 .lov-value { font-size: 13px; color: #1a1a2e; }
 .lov-inactive { text-decoration: line-through; color: var(--muted); }
+.consultant-toolbar { align-items: center; }
+.chaplain-check { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: #374151; white-space: nowrap; cursor: pointer; }
+.chaplain-check input { width: 14px; height: 14px; margin: 0; cursor: pointer; }
+.chaplain-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 20px; background: #ede9fe; color: #6d28d9; margin-left: 6px; }
 .lov-actions { display: flex; gap: 4px; }
 .icon-btn { width: 28px; height: 28px; border-radius: 6px; border: none; background: transparent; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; }
 .icon-btn:hover { background: #fee2e2; }
@@ -260,3 +265,50 @@ tbody tr:last-child td { border-bottom: none; }
 .bar-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; transition: width 0.3s; }
 .bar-val { font-size: 11px; font-weight: 700; color: #fff; }
 .bar-val-outside { font-size: 11px; font-weight: 700; color: #374151; margin-left: 6px; }
+
+/* Import panel */
+.import-idle {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.import-hint {
+  font-size: 13px;
+  color: var(--text-muted, #6b7280);
+  margin: 0;
+}
+
+.import-preview,
+.import-done {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.import-counts {
+  display: flex;
+  gap: 24px;
+}
+
+.import-count-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.import-count-num {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--primary, #6366f1);
+  line-height: 1;
+}
+
+.import-count-label {
+  font-size: 11px;
+  color: var(--text-muted, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
