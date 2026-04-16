@@ -84,3 +84,119 @@ SEED_SETTINGS = [
 SEED_CONSULTANTS = [
     ('Frances', 1, 1),
 ]
+
+# ─── Build (requires Windows + Excel + pywin32) ───────────────────────────────
+
+def build_workbook(output_path=None, src_dir=None):
+    """Create AmbulatoryPatients.xlsm via Excel COM automation.
+
+    Run on Windows with Excel installed. One-time setup required:
+    Excel -> Options -> Trust Center -> Trust Center Settings ->
+    Macro Settings -> check 'Trust access to the VBA project object model'.
+    """
+    import win32com.client as win32
+
+    here = os.path.dirname(os.path.abspath(__file__))
+    if output_path is None:
+        output_path = os.path.join(here, 'dist', 'AmbulatoryPatients.xlsm')
+    if src_dir is None:
+        src_dir = os.path.join(here, 'src')
+
+    output_path = os.path.abspath(output_path)
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    if os.path.exists(output_path):
+        os.remove(output_path)
+
+    excel = win32.Dispatch('Excel.Application')
+    excel.Visible = False
+    excel.DisplayAlerts = False
+
+    wb = None
+    try:
+        wb = excel.Workbooks.Add()
+        _setup_sheets(wb)
+        _write_headers(wb)
+        _seed_data(wb)
+        _import_vba(wb, src_dir)
+        _configure_workbook(wb)
+        wb.SaveAs(output_path, FileFormat=52)  # 52 = xlOpenXMLMacroEnabled
+        print(f'Built: {output_path}')
+    finally:
+        if wb is not None:
+            wb.Close(False)
+        excel.Quit()
+
+
+def _setup_sheets(wb):
+    """Create data sheets then UI sheets in the specified order."""
+    while wb.Sheets.Count > 1:
+        wb.Sheets(wb.Sheets.Count).Delete()
+    wb.Sheets(1).Name = DATA_SHEETS[0]
+    for name in DATA_SHEETS[1:]:
+        wb.Sheets.Add(After=wb.Sheets(wb.Sheets.Count)).Name = name
+    for name in UI_SHEETS:
+        wb.Sheets.Add(After=wb.Sheets(wb.Sheets.Count)).Name = name
+
+
+def _write_headers(wb):
+    """Write bold column headers to all data sheets."""
+    for sheet_name, cols in SHEET_HEADERS.items():
+        ws = wb.Sheets(sheet_name)
+        for col_idx, col_name in enumerate(cols, 1):
+            cell = ws.Cells(1, col_idx)
+            cell.Value = col_name
+            cell.Font.Bold = True
+
+
+def _seed_data(wb):
+    """Write default rows to _data_lov, _data_settings, _data_consultants."""
+    # _data_lov
+    lov_ws = wb.Sheets('_data_lov')
+    for row_idx, (category, value, sort_order) in enumerate(SEED_LOV, 2):
+        lov_ws.Cells(row_idx, 1).Value = row_idx - 1  # id
+        lov_ws.Cells(row_idx, 2).Value = category
+        lov_ws.Cells(row_idx, 3).Value = value
+        lov_ws.Cells(row_idx, 4).Value = 1             # is_active
+        lov_ws.Cells(row_idx, 5).Value = sort_order
+
+    # _data_settings
+    settings_ws = wb.Sheets('_data_settings')
+    for row_idx, (key, value) in enumerate(SEED_SETTINGS, 2):
+        settings_ws.Cells(row_idx, 1).Value = key
+        settings_ws.Cells(row_idx, 2).Value = value
+
+    # _data_consultants
+    cons_ws = wb.Sheets('_data_consultants')
+    for row_idx, (name, is_chaplain, is_active) in enumerate(SEED_CONSULTANTS, 2):
+        cons_ws.Cells(row_idx, 1).Value = row_idx - 1  # id
+        cons_ws.Cells(row_idx, 2).Value = name
+        cons_ws.Cells(row_idx, 3).Value = is_chaplain
+        cons_ws.Cells(row_idx, 4).Value = is_active
+
+
+def _import_vba(wb, src_dir):
+    """Import .bas, .cls, and .frm source files from src_dir into the VBA project."""
+    if not os.path.isdir(src_dir):
+        print(f'  src/ not found, skipping VBA import: {src_dir}')
+        return
+    vbp = wb.VBProject
+    for filename in sorted(os.listdir(src_dir)):
+        ext = os.path.splitext(filename)[1].lower()
+        if ext in ('.bas', '.cls', '.frm'):
+            filepath = os.path.abspath(os.path.join(src_dir, filename))
+            vbp.VBComponents.Import(filepath)
+            print(f'  Imported: {filename}')
+
+
+def _configure_workbook(wb):
+    """Hide all data sheets (xlVeryHidden) and activate WorkQueue."""
+    XL_VERY_HIDDEN = -2
+    for name in DATA_SHEETS:
+        wb.Sheets(name).Visible = XL_VERY_HIDDEN
+    wb.Sheets('WorkQueue').Activate()
+
+
+if __name__ == '__main__':
+    out = sys.argv[1] if len(sys.argv) > 1 else None
+    build_workbook(out)
