@@ -10,3 +10,6 @@ release/
 excel/__pycache__/
 excel/.pytest_cache/
 excel/tests/__pycache__/
+# Allow excel/dist/ even though dist/ is globally ignored
+!excel/dist/
+!excel/dist/**
