@@ -5,3 +5,8 @@ release/
 *.db-shm
 *.db-wal
 .DS_Store
+
+# Excel build artifacts
+excel/__pycache__/
+excel/.pytest_cache/
+excel/tests/__pycache__/
