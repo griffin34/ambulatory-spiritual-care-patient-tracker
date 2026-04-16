@@ -108,12 +108,12 @@ def build_workbook(output_path=None, src_dir=None):
     if os.path.exists(output_path):
         os.remove(output_path)
 
-    excel = win32.Dispatch('Excel.Application')
-    excel.Visible = False
-    excel.DisplayAlerts = False
-
+    excel = None
     wb = None
     try:
+        excel = win32.Dispatch('Excel.Application')
+        excel.Visible = False
+        excel.DisplayAlerts = False
         wb = excel.Workbooks.Add()
         _setup_sheets(wb)
         _write_headers(wb)
@@ -125,7 +125,8 @@ def build_workbook(output_path=None, src_dir=None):
     finally:
         if wb is not None:
             wb.Close(False)
-        excel.Quit()
+        if excel is not None:
+            excel.Quit()
 
 
 def _setup_sheets(wb):
@@ -180,7 +181,14 @@ def _import_vba(wb, src_dir):
     if not os.path.isdir(src_dir):
         print(f'  src/ not found, skipping VBA import: {src_dir}')
         return
-    vbp = wb.VBProject
+    try:
+        vbp = wb.VBProject
+    except Exception:
+        raise RuntimeError(
+            'Cannot access VBA project. In Excel: File -> Options -> Trust Center -> '
+            'Trust Center Settings -> Macro Settings -> check '
+            '"Trust access to the VBA project object model".'
+        )
     for filename in sorted(os.listdir(src_dir)):
         ext = os.path.splitext(filename)[1].lower()
         if ext in ('.bas', '.cls', '.frm'):
