@@ -121,7 +121,7 @@ def build_workbook(output_path=None, src_dir=None):
         _seed_data(wb)
         _import_vba(wb, src_dir)
         _configure_workbook(wb)
-        wb.api.SaveAs(output_path, FileFormat=52)  # 52 = xlOpenXMLMacroEnabled
+        _save_workbook(wb, output_path)
         print(f'Built: {output_path}')
     finally:
         if wb is not None:
@@ -147,7 +147,7 @@ def _write_headers(wb):
         ws = wb.sheets[sheet_name]
         for col_idx, col_name in enumerate(cols, 1):
             ws.cells(1, col_idx).value = col_name
-            ws.cells(1, col_idx).api.Font.Bold = True
+            ws.cells(1, col_idx).font.bold = True
 
 
 def _seed_data(wb):
@@ -177,12 +177,29 @@ def _seed_data(wb):
 
 
 def _import_vba(wb, src_dir):
-    """Import .bas, .cls, and .frm source files from src_dir into the VBA project."""
+    """Import .bas, .cls, and .frm source files from src_dir into the VBA project.
+
+    Requires COM access (Windows) or a COM bridge (Windows via xlwings).
+    On Mac, VBProject is not accessible via appscript — prints instructions instead.
+    """
     if not os.path.isdir(src_dir):
         print(f'  src/ not found, skipping VBA import: {src_dir}')
         return
     try:
         vbp = wb.api.VBProject
+    except AttributeError:
+        # Mac: appscript does not expose VBProject — manual import required.
+        vba_files = sorted(
+            f for f in os.listdir(src_dir)
+            if os.path.splitext(f)[1].lower() in ('.bas', '.cls', '.frm')
+        )
+        print('\n  ⚠️  VBA import skipped (Mac/appscript limitation).')
+        print('  Open the saved workbook in Excel, then in the VBA editor (⌥F11):')
+        print('    File → Import File — import each of these in order:')
+        for f in vba_files:
+            print(f'      {os.path.join(src_dir, f)}')
+        print()
+        return
     except Exception:
         raise RuntimeError(
             'Cannot access VBA project.\n'
@@ -199,12 +216,24 @@ def _import_vba(wb, src_dir):
             print(f'  Imported: {filename}')
 
 
+def _save_workbook(wb, output_path):
+    """Save the workbook as .xlsm using platform-appropriate API."""
+    try:
+        # Windows COM: SaveAs with explicit FileFormat=52 (xlOpenXMLMacroEnabled)
+        wb.api.SaveAs(output_path, FileFormat=52)
+    except AttributeError:
+        # Mac appscript: use xlwings save() — file extension determines format
+        wb.save(output_path)
+
+
 def _configure_workbook(wb):
-    """Hide all data sheets (xlVeryHidden) and activate WorkQueue."""
-    XL_VERY_HIDDEN = -2
+    """Hide all data sheets and activate WorkQueue."""
     for name in DATA_SHEETS:
-        wb.sheets[name].api.Visible = XL_VERY_HIDDEN
-    wb.sheets['WorkQueue'].activate()
+        wb.sheets[name].visible = False
+    try:
+        wb.sheets['WorkQueue'].activate()
+    except Exception:
+        pass  # Mac invisible app cannot activate sheets; WorkQueue is still first visible
 
 
 if __name__ == '__main__':
