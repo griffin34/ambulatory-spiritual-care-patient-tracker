@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth'
 import Sidebar from './components/Sidebar'
 import Login from './pages/Login'
@@ -41,10 +41,10 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <AuthProvider>
         <AppRoutes />
       </AuthProvider>
-    </BrowserRouter>
+    </HashRouter>
   )
 }
