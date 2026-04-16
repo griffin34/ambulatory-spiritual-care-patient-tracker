@@ -2,7 +2,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from build import DATA_SHEETS, UI_SHEETS, SHEET_HEADERS, SEED_LOV, SEED_SETTINGS
+from build import DATA_SHEETS, UI_SHEETS, SHEET_HEADERS, SEED_LOV, SEED_SETTINGS, SEED_CONSULTANTS
 
 
 def test_data_sheets_order():
@@ -97,3 +97,25 @@ def test_seed_settings_defaults():
     assert d['retention_months'] == '12'
     assert d['purge_frequency'] == 'quarterly'
     assert d['last_purge_date'] == ''
+
+
+def test_seed_consultants_shape():
+    for row in SEED_CONSULTANTS:
+        assert len(row) == 3, f'Expected (name, is_chaplain, is_active), got {row}'
+        assert isinstance(row[0], str)
+        assert row[1] in (0, 1)
+        assert row[2] in (0, 1)
+
+
+def test_seed_consultants_default():
+    assert SEED_CONSULTANTS[0] == ('Frances', 1, 1)
+
+
+def test_no_orphan_header_keys():
+    for key in SHEET_HEADERS:
+        assert key in DATA_SHEETS, f'SHEET_HEADERS has orphan key not in DATA_SHEETS: {key}'
+
+
+def test_no_duplicate_columns():
+    for sheet_name, cols in SHEET_HEADERS.items():
+        assert len(cols) == len(set(cols)), f'Duplicate column in {sheet_name}: {cols}'
