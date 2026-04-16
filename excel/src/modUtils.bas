@@ -9,7 +9,11 @@ Public Function NextId(ws As Worksheet) As Long
     If lastRow <= 1 Then
         NextId = 1
     Else
-        NextId = CLng(ws.Cells(lastRow, 1).Value) + 1
+        If IsNumeric(ws.Cells(lastRow, 1).Value) Then
+            NextId = CLng(ws.Cells(lastRow, 1).Value) + 1
+        Else
+            NextId = 1
+        End If
     End If
 End Function
 
@@ -33,8 +37,9 @@ End Function
 ' Returns 0 if the column is not found.
 Public Function ColIndex(ws As Worksheet, colName As String) As Integer
     Dim i As Integer
-    For i = 1 To 50
-        If ws.Cells(1, i).Value = "" Then Exit For
+    Dim lastCol As Integer
+    lastCol = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
+    For i = 1 To lastCol
         If ws.Cells(1, i).Value = colName Then
             ColIndex = i
             Exit Function
