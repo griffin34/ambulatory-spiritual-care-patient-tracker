@@ -2,19 +2,15 @@ Attribute VB_Name = "modUtils"
 Option Explicit
 
 ' Returns the next auto-increment ID for a data sheet.
-' Column A holds integer IDs; row 1 is the header row.
+' Uses Max over column A so the result is correct even if rows are sorted
+' or deleted (e.g., after a purge). Column A holds integer IDs; row 1 is header.
 Public Function NextId(ws As Worksheet) As Long
-    Dim lastRow As Long
-    lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
-    If lastRow <= 1 Then
-        NextId = 1
-    Else
-        If IsNumeric(ws.Cells(lastRow, 1).Value) Then
-            NextId = CLng(ws.Cells(lastRow, 1).Value) + 1
-        Else
-            NextId = 1
-        End If
-    End If
+    Dim maxId As Long
+    On Error Resume Next
+    maxId = Application.WorksheetFunction.Max(ws.Columns(1))
+    On Error GoTo 0
+    NextId = maxId + 1
+    If NextId <= 1 Then NextId = 1
 End Function
 
 ' Returns the last occupied row number in column A.
@@ -35,9 +31,9 @@ End Function
 
 ' Returns the column index (1-based) for a header name in row 1.
 ' Returns 0 if the column is not found.
-Public Function ColIndex(ws As Worksheet, colName As String) As Integer
-    Dim i As Integer
-    Dim lastCol As Integer
+Public Function ColIndex(ws As Worksheet, colName As String) As Long
+    Dim i As Long
+    Dim lastCol As Long
     lastCol = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
     For i = 1 To lastCol
         If ws.Cells(1, i).Value = colName Then
@@ -51,7 +47,7 @@ End Function
 ' Gets a cell value by row index and column name.
 ' Returns Null if the column name is not found in row 1.
 Public Function GetVal(ws As Worksheet, rowIdx As Long, colName As String) As Variant
-    Dim c As Integer
+    Dim c As Long
     c = ColIndex(ws, colName)
     If c = 0 Then
         GetVal = Null
@@ -63,7 +59,7 @@ End Function
 ' Sets a cell value by row index and column name.
 ' No-op if the column name is not found in row 1.
 Public Sub SetVal(ws As Worksheet, rowIdx As Long, colName As String, val As Variant)
-    Dim c As Integer
+    Dim c As Long
     c = ColIndex(ws, colName)
     If c > 0 Then ws.Cells(rowIdx, c).Value = val
 End Sub

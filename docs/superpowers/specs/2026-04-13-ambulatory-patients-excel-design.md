@@ -160,6 +160,7 @@ Every status transition writes a new row here AND updates `current_status` on th
 |--------|------|-------|
 | id | Long | |
 | name | String | |
+| is_chaplain | Integer | 0 or 1 — distinguishes chaplains from other consultants |
 | is_active | Integer | |
 
 ### `_data_lov`
