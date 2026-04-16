@@ -85,16 +85,18 @@ SEED_CONSULTANTS = [
     ('Frances', 1, 1),
 ]
 
-# ─── Build (requires Windows + Excel + pywin32) ───────────────────────────────
+# ─── Build (requires Excel for Mac or Windows + xlwings) ─────────────────────
 
 def build_workbook(output_path=None, src_dir=None):
-    """Create AmbulatoryPatients.xlsm via Excel COM automation.
+    """Create AmbulatoryPatients.xlsm via xlwings (Mac or Windows).
 
-    Run on Windows with Excel installed. One-time setup required:
-    Excel -> Options -> Trust Center -> Trust Center Settings ->
-    Macro Settings -> check 'Trust access to the VBA project object model'.
+    One-time setup in Excel:
+      Mac:     Excel → Preferences → Security →
+               check 'Trust access to the VBA project object model'
+      Windows: File → Options → Trust Center → Trust Center Settings →
+               Macro Settings → check 'Trust access to the VBA project object model'
     """
-    import win32com.client as win32
+    import xlwings as xw
 
     here = os.path.dirname(os.path.abspath(__file__))
     if output_path is None:
@@ -108,72 +110,70 @@ def build_workbook(output_path=None, src_dir=None):
     if os.path.exists(output_path):
         os.remove(output_path)
 
-    excel = None
+    app = None
     wb = None
     try:
-        excel = win32.Dispatch('Excel.Application')
-        excel.Visible = False
-        excel.DisplayAlerts = False
-        wb = excel.Workbooks.Add()
+        app = xw.App(visible=False)
+        app.display_alerts = False
+        wb = app.books.add()
         _setup_sheets(wb)
         _write_headers(wb)
         _seed_data(wb)
         _import_vba(wb, src_dir)
         _configure_workbook(wb)
-        wb.SaveAs(output_path, FileFormat=52)  # 52 = xlOpenXMLMacroEnabled
+        wb.api.SaveAs(output_path, FileFormat=52)  # 52 = xlOpenXMLMacroEnabled
         print(f'Built: {output_path}')
     finally:
         if wb is not None:
-            wb.Close(False)
-        if excel is not None:
-            excel.Quit()
+            wb.close()
+        if app is not None:
+            app.quit()
 
 
 def _setup_sheets(wb):
     """Create data sheets then UI sheets in the specified order."""
-    while wb.Sheets.Count > 1:
-        wb.Sheets(wb.Sheets.Count).Delete()
-    wb.Sheets(1).Name = DATA_SHEETS[0]
+    while len(wb.sheets) > 1:
+        wb.sheets[-1].delete()
+    wb.sheets[0].name = DATA_SHEETS[0]
     for name in DATA_SHEETS[1:]:
-        wb.Sheets.Add(After=wb.Sheets(wb.Sheets.Count)).Name = name
+        wb.sheets.add(name=name, after=wb.sheets[-1])
     for name in UI_SHEETS:
-        wb.Sheets.Add(After=wb.Sheets(wb.Sheets.Count)).Name = name
+        wb.sheets.add(name=name, after=wb.sheets[-1])
 
 
 def _write_headers(wb):
     """Write bold column headers to all data sheets."""
     for sheet_name, cols in SHEET_HEADERS.items():
-        ws = wb.Sheets(sheet_name)
+        ws = wb.sheets[sheet_name]
         for col_idx, col_name in enumerate(cols, 1):
-            cell = ws.Cells(1, col_idx)
-            cell.Value = col_name
-            cell.Font.Bold = True
+            ws.cells(1, col_idx).value = col_name
+            ws.cells(1, col_idx).api.Font.Bold = True
 
 
 def _seed_data(wb):
     """Write default rows to _data_lov, _data_settings, _data_consultants."""
     # _data_lov
-    lov_ws = wb.Sheets('_data_lov')
+    lov_ws = wb.sheets['_data_lov']
     for row_idx, (category, value, sort_order) in enumerate(SEED_LOV, 2):
-        lov_ws.Cells(row_idx, 1).Value = row_idx - 1  # id
-        lov_ws.Cells(row_idx, 2).Value = category
-        lov_ws.Cells(row_idx, 3).Value = value
-        lov_ws.Cells(row_idx, 4).Value = 1             # is_active
-        lov_ws.Cells(row_idx, 5).Value = sort_order
+        lov_ws.cells(row_idx, 1).value = row_idx - 1  # id
+        lov_ws.cells(row_idx, 2).value = category
+        lov_ws.cells(row_idx, 3).value = value
+        lov_ws.cells(row_idx, 4).value = 1             # is_active
+        lov_ws.cells(row_idx, 5).value = sort_order
 
     # _data_settings
-    settings_ws = wb.Sheets('_data_settings')
+    settings_ws = wb.sheets['_data_settings']
     for row_idx, (key, value) in enumerate(SEED_SETTINGS, 2):
-        settings_ws.Cells(row_idx, 1).Value = key
-        settings_ws.Cells(row_idx, 2).Value = value
+        settings_ws.cells(row_idx, 1).value = key
+        settings_ws.cells(row_idx, 2).value = value
 
     # _data_consultants
-    cons_ws = wb.Sheets('_data_consultants')
+    cons_ws = wb.sheets['_data_consultants']
     for row_idx, (name, is_chaplain, is_active) in enumerate(SEED_CONSULTANTS, 2):
-        cons_ws.Cells(row_idx, 1).Value = row_idx - 1  # id
-        cons_ws.Cells(row_idx, 2).Value = name
-        cons_ws.Cells(row_idx, 3).Value = is_chaplain
-        cons_ws.Cells(row_idx, 4).Value = is_active
+        cons_ws.cells(row_idx, 1).value = row_idx - 1  # id
+        cons_ws.cells(row_idx, 2).value = name
+        cons_ws.cells(row_idx, 3).value = is_chaplain
+        cons_ws.cells(row_idx, 4).value = is_active
 
 
 def _import_vba(wb, src_dir):
@@ -182,12 +182,14 @@ def _import_vba(wb, src_dir):
         print(f'  src/ not found, skipping VBA import: {src_dir}')
         return
     try:
-        vbp = wb.VBProject
+        vbp = wb.api.VBProject
     except Exception:
         raise RuntimeError(
-            'Cannot access VBA project. In Excel: File -> Options -> Trust Center -> '
-            'Trust Center Settings -> Macro Settings -> check '
-            '"Trust access to the VBA project object model".'
+            'Cannot access VBA project.\n'
+            '  Mac:     Excel → Preferences → Security → '
+            'check "Trust access to the VBA project object model"\n'
+            '  Windows: File → Options → Trust Center → Trust Center Settings → '
+            'Macro Settings → check "Trust access to the VBA project object model"'
         )
     for filename in sorted(os.listdir(src_dir)):
         ext = os.path.splitext(filename)[1].lower()
@@ -201,8 +203,8 @@ def _configure_workbook(wb):
     """Hide all data sheets (xlVeryHidden) and activate WorkQueue."""
     XL_VERY_HIDDEN = -2
     for name in DATA_SHEETS:
-        wb.Sheets(name).Visible = XL_VERY_HIDDEN
-    wb.Sheets('WorkQueue').Activate()
+        wb.sheets[name].api.Visible = XL_VERY_HIDDEN
+    wb.sheets['WorkQueue'].activate()
 
 
 if __name__ == '__main__':

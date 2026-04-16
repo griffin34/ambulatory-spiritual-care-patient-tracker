@@ -1,2 +1,2 @@
-pywin32>=306
+xlwings>=0.30.0
 pytest>=8.0
