@@ -5,10 +5,13 @@ module.exports = {
   files: ['dist/renderer/**/*', 'src/main/**/*', 'node_modules/**/*'],
   win: {
     target: [{ target: 'portable', arch: ['x64'] }],
-    icon: 'assets/icon.ico'
+    icon: 'assets/icon-1.png',
+    artifactName: '${productName}.exe'
   },
   mac: {
     target: [{ target: 'dmg', arch: ['x64', 'arm64'] }],
-    category: 'public.app-category.healthcare'
+    icon: 'assets/icon-1.png',
+    category: 'public.app-category.healthcare',
+    artifactName: '${productName}.dmg'
   }
 }

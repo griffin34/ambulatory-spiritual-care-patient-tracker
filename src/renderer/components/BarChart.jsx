@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Jason Griffin
+// SPDX-License-Identifier: GPL-3.0-only
+
 import React from 'react'
 
 export default function BarChart({ rows, labelKey, valueKey, color = '#6366f1' }) {

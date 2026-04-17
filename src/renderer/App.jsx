@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Jason Griffin
+// SPDX-License-Identifier: GPL-3.0-only
+
 import React, { useEffect, useState } from 'react'
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth'

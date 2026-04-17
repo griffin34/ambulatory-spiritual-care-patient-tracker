@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Jason Griffin
+// SPDX-License-Identifier: GPL-3.0-only
+
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import StatusBadge, { STATUS_CONFIG } from '../components/StatusBadge'
@@ -16,7 +19,7 @@ function parseTime(v) {
   return { h: String(h24 % 12 || 12), m: mStr || '00', ampm: h24 >= 12 ? 'PM' : 'AM' }
 }
 
-const selStyle = { flex: 1, minWidth: 0, padding: '8px 4px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13, background: '#fff', color: '#1a1a2e' }
+const selStyle = { flex: 1, minWidth: 52, padding: '8px 4px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13, background: '#fff', color: '#1a1a2e' }
 
 function TimeSelect({ value, onChange, required }) {
   const [parts, setParts] = useState(() => parseTime(value))
@@ -171,14 +174,20 @@ export default function PatientDetail() {
             <div className="card">
               <div className="card-header"><h3>Appointments</h3></div>
               <div className="card-body">
-                {patient.appointments?.map(a => (
-                  <AppointmentCard key={a.id} appt={a} consultants={consultants} types={apptTypes} onUpdate={async (fields) => {
+                {(() => {
+                  const countable = ['scheduled', 'completed']
+                  const numbered = [...(patient.appointments || [])]
+                    .filter(a => countable.includes(a.status))
+                    .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
+                  const apptNumbers = Object.fromEntries(numbered.map((a, i) => [a.id, i + 1]))
+                  return patient.appointments?.map(a => (
+                  <AppointmentCard key={a.id} appt={a} apptNumber={apptNumbers[a.id]} consultants={consultants} types={apptTypes} onUpdate={async (fields) => {
                     await window.ipc.invoke('appointments:update', { id: a.id, ...fields })
                     const updated = await window.ipc.invoke('patients:get', { id: patient.id })
                     setPatient(updated)
                   }} />
-                ))}
-                {showApptForm && <AppointmentForm consultants={consultants} types={apptTypes} onSave={handleSaveAppt} onCancel={() => setShowApptForm(false)} />}
+                ))})()}
+                {showApptForm && <AppointmentForm consultants={consultants} types={apptTypes} countedAppts={(patient.appointments || []).filter(a => ['scheduled','completed'].includes(a.status)).length} onSave={handleSaveAppt} onCancel={() => setShowApptForm(false)} />}
                 {!showApptForm && <button className="add-appt-btn" onClick={() => setShowApptForm(true)}>+ Add Appointment</button>}
               </div>
             </div>
@@ -244,10 +253,10 @@ function ProfileCard({ patient, editing, lovs, onSave, onCancel }) {
   )
 }
 
-function AppointmentCard({ appt, onUpdate, consultants, types }) {
+function AppointmentCard({ appt, apptNumber, onUpdate, consultants, types }) {
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({ date: appt.date, time: appt.time, type_id: appt.type_id || '', consultant_id: appt.consultant_id || '', is_last_appointment: appt.is_last_appointment || 0, notes: appt.notes || '', status: appt.status })
-  const APPT_STATUS_COLORS = { scheduled:'#eab308', completed:'#3b82f6', no_show:'#f97316', cancelled:'#ef4444' }
+  const APPT_STATUS_COLORS = { scheduled:'#eab308', completed:'#3b82f6', no_show:'#f97316', cancelled:'#ef4444', rescheduled:'#a855f7' }
 
   const handleSave = async (e) => {
     e.preventDefault()
@@ -259,13 +268,11 @@ function AppointmentCard({ appt, onUpdate, consultants, types }) {
     return (
       <div className="appt-card appt-card-editing">
         <form onSubmit={handleSave}>
-          <div className="field-row-inline">
-            <div className="field"><label>Date *</label><input type="date" value={form.date} onChange={e => setForm(f => ({...f, date: e.target.value}))} required /></div>
-            <div className="field"><label>Time *</label><TimeSelect value={form.time} onChange={v => setForm(f => ({...f, time: v}))} required /></div>
-          </div>
+          <div className="field"><label>Date *</label><input type="date" value={form.date} onChange={e => setForm(f => ({...f, date: e.target.value}))} required /></div>
+          <div className="field"><label>Time *</label><TimeSelect value={form.time} onChange={v => setForm(f => ({...f, time: v}))} required /></div>
           <div className="field"><label>Type</label><select value={form.type_id} onChange={e => setForm(f => ({...f, type_id: e.target.value}))}><option value="">— Select —</option>{types.map(t => <option key={t.id} value={t.id}>{t.value}</option>)}</select></div>
           <div className="field"><label>Consultant</label><select value={form.consultant_id} onChange={e => setForm(f => ({...f, consultant_id: e.target.value}))}><option value="">— Select —</option>{(consultants||[]).filter(c => c.is_active).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-          <div className="field"><label>Status</label><select value={form.status} onChange={e => setForm(f => ({...f, status: e.target.value}))}>{['scheduled','completed','no_show','cancelled'].map(s => <option key={s} value={s}>{s.replace('_',' ')}</option>)}</select></div>
+          <div className="field"><label>Status</label><select value={form.status} onChange={e => setForm(f => ({...f, status: e.target.value}))}>{['scheduled','rescheduled','completed','no_show','cancelled'].map(s => <option key={s} value={s}>{s.replace('_',' ')}</option>)}</select></div>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, fontSize: 13, color: '#374151', cursor: 'pointer', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>
             <input type="checkbox" checked={!!form.is_last_appointment} onChange={e => setForm(f => ({...f, is_last_appointment: e.target.checked ? 1 : 0}))} style={{ width: 16, height: 16, margin: 0, flexShrink: 0 }} />
             Last appointment
@@ -283,6 +290,7 @@ function AppointmentCard({ appt, onUpdate, consultants, types }) {
   return (
     <div className="appt-card">
       <div className="appt-date-block">
+        {apptNumber != null && <div className="appt-seq">#{apptNumber}</div>}
         <div className="appt-month">{format(parseISO(appt.date), 'MMM').toUpperCase()}</div>
         <div className="appt-day">{format(parseISO(appt.date), 'd')}</div>
       </div>
@@ -299,15 +307,22 @@ function AppointmentCard({ appt, onUpdate, consultants, types }) {
   )
 }
 
-function AppointmentForm({ consultants, types, onSave, onCancel }) {
+function AppointmentForm({ consultants, types, countedAppts, onSave, onCancel }) {
   const [form, setForm] = useState({ date: '', time: '', type_id: '', consultant_id: '', is_last_appointment: 0, notes: '', status: 'scheduled' })
+
+  useEffect(() => {
+    if (!form.consultant_id) return
+    const consultant = consultants.find(c => c.id === parseInt(form.consultant_id))
+    if (!consultant) return
+    const threshold = consultant.is_chaplain ? 6 : 5
+    setForm(f => ({ ...f, is_last_appointment: (countedAppts + 1 === threshold) ? 1 : 0 }))
+  }, [form.consultant_id])
+
   return (
     <div className="appt-form">
       <form onSubmit={e => { e.preventDefault(); onSave(form) }}>
-        <div className="field-row-inline">
-          <div className="field"><label>Date *</label><input type="date" value={form.date} onChange={e => setForm(f => ({...f, date: e.target.value}))} required /></div>
-          <div className="field"><label>Time *</label><TimeSelect value={form.time} onChange={v => setForm(f => ({...f, time: v}))} required /></div>
-        </div>
+        <div className="field"><label>Date *</label><input type="date" value={form.date} onChange={e => setForm(f => ({...f, date: e.target.value}))} required /></div>
+        <div className="field"><label>Time *</label><TimeSelect value={form.time} onChange={v => setForm(f => ({...f, time: v}))} required /></div>
         <div className="field"><label>Type</label><select value={form.type_id} onChange={e => setForm(f => ({...f, type_id: e.target.value}))}><option value="">— Select —</option>{types.map(t => <option key={t.id} value={t.id}>{t.value}</option>)}</select></div>
         <div className="field"><label>Consultant</label><select value={form.consultant_id} onChange={e => setForm(f => ({...f, consultant_id: e.target.value}))}><option value="">— Select —</option>{consultants.filter(c => c.is_active).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, fontSize: 13, color: '#374151', cursor: 'pointer', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>

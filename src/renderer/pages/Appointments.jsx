@@ -1,11 +1,15 @@
+// Copyright (C) 2026 Jason Griffin
+// SPDX-License-Identifier: GPL-3.0-only
+
 import React, { useState, useEffect } from 'react'
 import { format, addDays, subDays, parseISO } from 'date-fns'
 
 const APPT_STATUS = {
-  scheduled: { bg: '#fefce8', border: '#eab308', label: 'Scheduled' },
-  completed: { bg: '#eff6ff', border: '#3b82f6', label: 'Completed' },
-  no_show:   { bg: '#fff7ed', border: '#f97316', label: 'No Show' },
-  cancelled: { bg: '#fef2f2', border: '#ef4444', label: 'Cancelled' },
+  scheduled:   { bg: '#fefce8', border: '#eab308', label: 'Scheduled' },
+  completed:   { bg: '#eff6ff', border: '#3b82f6', label: 'Completed' },
+  no_show:     { bg: '#fff7ed', border: '#f97316', label: 'No Show' },
+  cancelled:   { bg: '#fef2f2', border: '#ef4444', label: 'Cancelled' },
+  rescheduled: { bg: '#faf5ff', border: '#a855f7', label: 'Rescheduled' },
 }
 
 export default function Appointments() {
@@ -41,7 +45,7 @@ export default function Appointments() {
   }, {})
   const times = Object.keys(grouped).sort()
 
-  const counts = ['scheduled','completed','no_show','cancelled'].map(s => ({ status: s, count: appointments.filter(a => a.status === s).length }))
+  const counts = ['scheduled','rescheduled','completed','no_show','cancelled'].map(s => ({ status: s, count: appointments.filter(a => a.status === s).length }))
 
   return (
     <div className="page">

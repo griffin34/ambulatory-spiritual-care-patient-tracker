@@ -1,3 +1,5 @@
+certs/
+build/
 node_modules/
 dist/
 release/
@@ -5,6 +7,9 @@ release/
 *.db-shm
 *.db-wal
 .DS_Store
+
+# Excel temp lock files
+excel/dist/~$*.xlsm
 
 # Excel build artifacts
 excel/__pycache__/

@@ -1,4 +1,7 @@
-const { app, BrowserWindow, ipcMain } = require('electron')
+// Copyright (C) 2026 Jason Griffin
+// SPDX-License-Identifier: GPL-3.0-only
+
+const { app, BrowserWindow, ipcMain, Menu } = require('electron')
 const path = require('path')
 const { runMigrations, getDb } = require('./db')
 const { seedLovs } = require('./seed')
@@ -40,6 +43,10 @@ app.whenReady().then(() => {
   const { dialog } = require('electron')
   ipcMain.handle('dialog:showSaveDialog', (_, args) => dialog.showSaveDialog(args))
   ipcMain.handle('dialog:showOpenDialog', (_, args) => dialog.showOpenDialog(args))
+  app.setAboutPanelOptions({ applicationName: 'Ambulatory Patients', applicationVersion: app.getVersion() })
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    { label: 'Help', submenu: [{ label: 'About', click: () => app.showAboutPanel() }] }
+  ]))
   createWindow()
 })
 

@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Jason Griffin
+// SPDX-License-Identifier: GPL-3.0-only
+
 function createPatientHandlers(db) {
   return {
     async createPatient({ last_name, first_name, middle_name, mrn, phone, date_of_referral, referral_source_id, religion_id, language_id, userId }) {

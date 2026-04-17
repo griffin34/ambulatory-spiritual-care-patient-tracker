@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Jason Griffin
+// SPDX-License-Identifier: GPL-3.0-only
+
 import React, { createContext, useContext, useState, useEffect } from 'react'
 
 const AuthContext = createContext(null)

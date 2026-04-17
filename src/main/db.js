@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Jason Griffin
+// SPDX-License-Identifier: GPL-3.0-only
+
 const Database = require('better-sqlite3')
 const path = require('path')
 
@@ -23,6 +26,36 @@ function getDb() {
 
 function runMigrations(db) {
   const instance = db || getDb()
+  // Migration: add is_chaplain column to consultants
+  const consultantCols = instance.pragma('table_info(consultants)').map(c => c.name)
+  if (consultantCols.length > 0 && !consultantCols.includes('is_chaplain')) {
+    instance.exec(`ALTER TABLE consultants ADD COLUMN is_chaplain INTEGER NOT NULL DEFAULT 0`)
+  }
+
+  // Migration: expand appointments.status CHECK to include 'rescheduled'
+  const apptSql = instance.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='appointments'").get()
+  if (apptSql && apptSql.sql && !apptSql.sql.includes("'rescheduled'")) {
+    instance.exec(`
+      PRAGMA foreign_keys = OFF;
+      ALTER TABLE appointments RENAME TO _appointments_old;
+      CREATE TABLE appointments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        patient_id INTEGER NOT NULL REFERENCES patients(id),
+        date TEXT NOT NULL,
+        time TEXT NOT NULL,
+        type_id INTEGER REFERENCES list_of_values(id),
+        consultant_id INTEGER REFERENCES consultants(id),
+        is_last_appointment INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'scheduled' CHECK(status IN ('scheduled','completed','no_show','cancelled','rescheduled')),
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      INSERT INTO appointments SELECT * FROM _appointments_old;
+      DROP TABLE _appointments_old;
+      PRAGMA foreign_keys = ON;
+    `)
+  }
+
   instance.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,13 +96,14 @@ function runMigrations(db) {
       type_id INTEGER REFERENCES list_of_values(id),
       consultant_id INTEGER REFERENCES consultants(id),
       is_last_appointment INTEGER NOT NULL DEFAULT 0,
-      status TEXT NOT NULL DEFAULT 'scheduled' CHECK(status IN ('scheduled','completed','no_show','cancelled')),
+      status TEXT NOT NULL DEFAULT 'scheduled' CHECK(status IN ('scheduled','completed','no_show','cancelled','rescheduled')),
       notes TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
     CREATE TABLE IF NOT EXISTS consultants (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
+      is_chaplain INTEGER NOT NULL DEFAULT 0,
       is_active INTEGER NOT NULL DEFAULT 1
     );
     CREATE TABLE IF NOT EXISTS list_of_values (

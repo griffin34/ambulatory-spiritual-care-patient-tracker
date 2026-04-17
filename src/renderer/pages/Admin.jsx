@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Jason Griffin
+// SPDX-License-Identifier: GPL-3.0-only
+
 import React, { useState, useEffect } from 'react'
 
 const LOV_CATEGORIES = [

@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Jason Griffin
+// SPDX-License-Identifier: GPL-3.0-only
+
 const bcrypt = require('bcryptjs')
 
 function createAdminHandlers(db) {
@@ -52,12 +55,13 @@ function createAdminHandlers(db) {
       return db.prepare('SELECT * FROM consultants ORDER BY name').all()
     },
 
-    async upsertConsultant({ id, name }) {
+    async upsertConsultant({ id, name, is_chaplain }) {
+      const chaplain = is_chaplain ? 1 : 0
       if (id) {
-        db.prepare('UPDATE consultants SET name = ? WHERE id = ?').run(name, id)
+        db.prepare('UPDATE consultants SET name = ?, is_chaplain = ? WHERE id = ?').run(name, chaplain, id)
         return db.prepare('SELECT * FROM consultants WHERE id = ?').get(id)
       }
-      const { lastInsertRowid } = db.prepare('INSERT INTO consultants (name) VALUES (?)').run(name)
+      const { lastInsertRowid } = db.prepare('INSERT INTO consultants (name, is_chaplain) VALUES (?, ?)').run(name, chaplain)
       return db.prepare('SELECT * FROM consultants WHERE id = ?').get(lastInsertRowid)
     },
 

@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Jason Griffin
+// SPDX-License-Identifier: GPL-3.0-only
+
 const STATUS_CONFIG = {
   ready_to_schedule: { label: 'Ready to Schedule', color: '#15803d', bg: '#f0fdf4', dot: '#22c55e' },
   scheduled:         { label: 'Scheduled',          color: '#a16207', bg: '#fefce8', dot: '#eab308' },

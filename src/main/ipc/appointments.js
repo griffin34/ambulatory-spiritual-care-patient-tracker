@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Jason Griffin
+// SPDX-License-Identifier: GPL-3.0-only
+
 function createAppointmentHandlers(db) {
   return {
     async createAppointment({ patient_id, date, time, type_id, consultant_id, is_last_appointment, status, notes }) {

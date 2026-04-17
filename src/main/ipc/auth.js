@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Jason Griffin
+// SPDX-License-Identifier: GPL-3.0-only
+
 const bcrypt = require('bcryptjs')
 const crypto = require('crypto')
 

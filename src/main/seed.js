@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Jason Griffin
+// SPDX-License-Identifier: GPL-3.0-only
+
 function seedLovs(db) {
   const insert = db.prepare('INSERT OR IGNORE INTO list_of_values (category, value, sort_order) VALUES (?, ?, ?)')
   const lovs = [
