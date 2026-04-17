@@ -21,17 +21,11 @@ jobs:
       - name: Build renderer
         run: npm run build:renderer
 
-      - name: Decode code signing certificate
-        run: |
-          echo "${{ secrets.WIN_CSC_LINK }}" | base64 --decode > codesign.pfx
-        shell: bash
-
       - name: Package with electron-builder
         run: npx electron-builder --win --publish never --config electron-builder.config.js
         env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
           DEBUG: electron-builder
-          CSC_LINK: codesign.pfx
-          CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
 
       - name: List output directories
         run: |
