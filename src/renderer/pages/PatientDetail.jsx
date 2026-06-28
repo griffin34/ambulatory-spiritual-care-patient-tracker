@@ -297,7 +297,14 @@ function SdatCard({ patient, onSave }) {
   const [form, setForm] = useState(() => buildSdatForm(patient))
   const [error, setError] = useState('')
 
-  useEffect(() => { setForm(buildSdatForm(patient)) }, [patient])
+  // Refresh from the latest patient data — but never while the user has this
+  // card open for editing. A sibling card's save (e.g. Notes) also refetches
+  // the patient and changes this reference; without the `editing` guard, that
+  // would silently wipe out unsaved SDAT edits still in progress.
+  useEffect(() => {
+    if (editing) return
+    setForm(buildSdatForm(patient))
+  }, [patient, editing])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -394,7 +401,12 @@ function NotesCard({ patient, onSave }) {
   const [notes, setNotes] = useState(patient?.notes || '')
   const [error, setError] = useState('')
 
-  useEffect(() => { setNotes(patient?.notes || '') }, [patient])
+  // See SdatCard's matching effect above: skip refreshing while this card is
+  // open for editing, so a sibling card's save can't wipe out unsaved notes.
+  useEffect(() => {
+    if (editing) return
+    setNotes(patient?.notes || '')
+  }, [patient, editing])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
