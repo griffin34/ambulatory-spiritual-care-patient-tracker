@@ -7,6 +7,7 @@ const STATUS_CONFIG = {
   completed:         { label: 'Completed',           color: '#1d4ed8', bg: '#eff6ff', dot: '#3b82f6' },
   dropped:           { label: 'Dropped',             color: '#dc2626', bg: '#fef2f2', dot: '#ef4444' },
   on_hold:           { label: 'On Hold',             color: '#6b7280', bg: '#f9fafb', dot: '#9ca3af' },
+  deleted:           { label: 'Deleted',             color: '#991b1b', bg: '#f3f4f6', dot: '#6b7280' },
 }
 
 export default function StatusBadge({ status, size = 'md' }) {

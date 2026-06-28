@@ -5,6 +5,7 @@ import React, { useEffect, useState } from 'react'
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth'
 import Sidebar from './components/Sidebar'
+import WhatsNewModal from './components/WhatsNewModal'
 import Login from './pages/Login'
 import FirstRun from './pages/FirstRun'
 import WorkQueue from './pages/WorkQueue'
@@ -27,6 +28,7 @@ function AppRoutes() {
 
   return (
     <div className="app-shell">
+      <WhatsNewModal />
       <Sidebar />
       <main className="main">
         <Routes>

@@ -29,7 +29,7 @@ function createAdminHandlers(db) {
     },
 
     async listLovs({ category }) {
-      return db.prepare('SELECT * FROM list_of_values WHERE category = ? AND is_active = 1 ORDER BY sort_order, value').all(category)
+      return db.prepare('SELECT * FROM list_of_values WHERE category = ? AND is_active = 1 ORDER BY value COLLATE NOCASE').all(category)
     },
 
     async upsertLov({ id, category, value, sort_order }) {

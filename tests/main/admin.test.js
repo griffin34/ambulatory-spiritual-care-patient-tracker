@@ -39,3 +39,11 @@ it('soft-deletes a LoV entry', async () => {
   const all = db.prepare("SELECT * FROM list_of_values WHERE id = ?").get(l.id)
   expect(all.is_active).toBe(0)
 })
+
+it('lists LoV values alphabetically, case-insensitively', async () => {
+  await h.upsertLov({ category: 'religion', value: 'banana' })
+  await h.upsertLov({ category: 'religion', value: 'Apple' })
+  await h.upsertLov({ category: 'religion', value: 'cherry' })
+  const lovs = await h.listLovs({ category: 'religion' })
+  expect(lovs.map(l => l.value)).toEqual(['Apple', 'banana', 'cherry'])
+})

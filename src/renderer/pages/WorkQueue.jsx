@@ -1,20 +1,34 @@
 // Copyright (C) 2026 Jason Griffin
 // SPDX-License-Identifier: GPL-3.0-only
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import StatusBadge, { STATUS_CONFIG } from '../components/StatusBadge'
+import PrintButton from '../components/PrintButton'
 import { useAuth } from '../hooks/useAuth'
 import { format, parseISO } from 'date-fns'
 
 const STATUSES = ['ready_to_schedule','scheduled','completed','dropped','on_hold']
 
+// Sortable columns: key + display label + value accessor for client-side sort.
+const COLUMNS = [
+  { key: 'name',             label: 'Patient Name',     accessor: p => `${p.last_name}, ${p.first_name}`.toLowerCase() },
+  { key: 'mrn',              label: 'MRN',              accessor: p => p.mrn },
+  { key: 'date_of_referral', label: 'Referral Date',    accessor: p => p.date_of_referral },
+  { key: 'referral_source',  label: 'Referral Source',  accessor: p => p.referral_source },
+  { key: 'language',         label: 'Language',         accessor: p => p.language },
+  { key: 'next_appointment', label: 'Next Appointment', accessor: p => p.next_appointment },
+  { key: 'current_status',   label: 'Status',           accessor: p => p.current_status },
+]
+
 export default function WorkQueue() {
   const [patients, setPatients] = useState([])
   const [filters, setFilters] = useState({ status: '', search: '' })
   const [loading, setLoading] = useState(true)
+  const [sortKey, setSortKey] = useState(null)
+  const [sortDir, setSortDir] = useState('asc')
   const navigate = useNavigate()
-  const { token } = useAuth()
+  const { user } = useAuth()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -24,6 +38,33 @@ export default function WorkQueue() {
   }, [filters])
 
   useEffect(() => { load() }, [load])
+
+  const toggleSort = (key) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('asc') }
+  }
+
+  const sorted = useMemo(() => {
+    if (!sortKey) return patients
+    const col = COLUMNS.find(c => c.key === sortKey)
+    const dir = sortDir === 'desc' ? -1 : 1
+    return [...patients].sort((a, b) => {
+      const av = col.accessor(a), bv = col.accessor(b)
+      if (av == null && bv == null) return 0
+      if (av == null) return 1   // nulls always sort last
+      if (bv == null) return -1
+      if (av < bv) return -1 * dir
+      if (av > bv) return 1 * dir
+      return 0
+    })
+  }, [patients, sortKey, sortDir])
+
+  const viewingDeleted = filters.status === 'deleted'
+
+  const handleRestore = async (p) => {
+    await window.ipc.invoke('patients:restore', { patientId: p.id, userId: user?.id ?? null })
+    load()
+  }
 
   const counts = STATUSES.reduce((acc, s) => ({ ...acc, [s]: patients.filter(p => p.current_status === s).length }), {})
 
@@ -45,6 +86,7 @@ export default function WorkQueue() {
         <h1>Work Queue</h1>
         <div className="topbar-right">
           <input className="search-input" placeholder="Search by name or MRN…" value={filters.search} onChange={e => setFilters(f => ({...f, search: e.target.value}))} />
+          <PrintButton />
           <button className="btn btn-outline" onClick={handleImport}>Import Excel</button>
           <button className="btn btn-primary" onClick={() => navigate('/queue/new')}>+ Add Patient</button>
         </div>
@@ -68,18 +110,25 @@ export default function WorkQueue() {
             {STATUS_CONFIG[s].label}
           </button>
         ))}
+        <button className={`filter-chip${viewingDeleted?' active':''}`} onClick={() => setFilters(f => ({...f, status: f.status==='deleted'?'':'deleted'}))} style={viewingDeleted?{}:{borderColor: STATUS_CONFIG.deleted.dot+'66', color: STATUS_CONFIG.deleted.color}}>
+          {STATUS_CONFIG.deleted.label}
+        </button>
       </div>
 
       <div className="table-area">
         <table>
           <thead><tr>
-            <th>Patient Name</th><th>MRN</th><th>Referral Date</th>
-            <th>Referral Source</th><th>Language</th><th>Next Appointment</th><th>Status</th><th></th>
+            {COLUMNS.map(c => (
+              <th key={c.key} onClick={() => toggleSort(c.key)} style={{cursor:'pointer', userSelect:'none'}}>
+                {c.label}{sortKey === c.key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+              </th>
+            ))}
+            <th className="no-print"></th>
           </tr></thead>
           <tbody>
             {loading ? <tr><td colSpan={8} style={{textAlign:'center',padding:32,color:'#a0aec0'}}>Loading…</td></tr>
-            : patients.length === 0 ? <tr><td colSpan={8} style={{textAlign:'center',padding:32,color:'#a0aec0'}}>No patients found</td></tr>
-            : patients.map(p => (
+            : sorted.length === 0 ? <tr><td colSpan={8} style={{textAlign:'center',padding:32,color:'#a0aec0'}}>No patients found</td></tr>
+            : sorted.map(p => (
               <tr key={p.id} onClick={() => navigate(`/queue/${p.id}`)} style={{cursor:'pointer'}}>
                 <td className="name">{p.last_name}, {p.first_name}{p.middle_name ? ` ${p.middle_name[0]}.`:''}</td>
                 <td className="mrn">{p.mrn || '—'}</td>
@@ -88,7 +137,11 @@ export default function WorkQueue() {
                 <td>{p.language || '—'}</td>
                 <td>{p.next_appointment ? format(parseISO(p.next_appointment.replace(' ', 'T')), 'MMM d, h:mm a') : <span style={{color:'#a0aec0',fontStyle:'italic'}}>None</span>}</td>
                 <td><StatusBadge status={p.current_status} /></td>
-                <td><button className="action-btn" onClick={e => {e.stopPropagation(); navigate(`/queue/${p.id}`)}}>View</button></td>
+                <td className="no-print">
+                  {viewingDeleted
+                    ? <button className="action-btn" onClick={e => {e.stopPropagation(); handleRestore(p)}}>Restore</button>
+                    : <button className="action-btn" onClick={e => {e.stopPropagation(); navigate(`/queue/${p.id}`)}}>View</button>}
+                </td>
               </tr>
             ))}
           </tbody>

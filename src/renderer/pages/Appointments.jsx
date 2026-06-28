@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { format, addDays, subDays, parseISO } from 'date-fns'
+import PrintButton from '../components/PrintButton'
 
 const APPT_STATUS = {
   scheduled:   { bg: '#fefce8', border: '#eab308', label: 'Scheduled' },
@@ -52,12 +53,13 @@ export default function Appointments() {
       <div className="topbar">
         <h1>Appointments</h1>
         <div className="topbar-right">
+          <PrintButton orientation="portrait" />
           <button className="btn btn-outline">Export</button>
         </div>
       </div>
 
       <div className="date-nav">
-        <div className="date-nav-arrows">
+        <div className="date-nav-arrows no-print">
           <button className="arrow-btn" onClick={() => setDate(format(subDays(parseISO(date), 1), 'yyyy-MM-dd'))}>‹</button>
           <button className="arrow-btn" onClick={() => setDate(format(addDays(parseISO(date), 1), 'yyyy-MM-dd'))}>›</button>
         </div>
@@ -65,13 +67,15 @@ export default function Appointments() {
           <div className="current-date">{format(parseISO(date), 'EEEE, MMMM d, yyyy')}</div>
           <div className="date-subtitle">{appointments.length} appointment{appointments.length !== 1 ? 's' : ''}</div>
         </div>
-        <div className="quick-jumps">
+        <div className="quick-jumps no-print">
           <button className="jump-btn" onClick={() => setDate(format(subDays(new Date(), 14), 'yyyy-MM-dd'))}>−14 Days</button>
           <button className="jump-btn today" onClick={() => setDate(format(new Date(), 'yyyy-MM-dd'))}>Today</button>
         </div>
       </div>
 
-      <div className="date-strip">
+      {/* Print should show just the selected date and its appointments, not
+          the full date-picker strip or status-count chips from the UI. */}
+      <div className="date-strip no-print">
         {stripDays.map(d => (
           <div key={d.date} className={`strip-day${d.isCurrent?' today':''}${d.date < format(new Date(),'yyyy-MM-dd')?' past':''}`} onClick={() => setDate(d.date)}>
             <span className="dow">{format(parseISO(d.date), 'EEE').toUpperCase()}</span>
@@ -82,7 +86,7 @@ export default function Appointments() {
       </div>
 
       <div className="content">
-        <div className="day-summary">
+        <div className="day-summary no-print">
           {counts.map(({ status, count }) => (
             <div key={status} className="summary-chip">
               <div className="dot" style={{ background: APPT_STATUS[status].border }}></div>

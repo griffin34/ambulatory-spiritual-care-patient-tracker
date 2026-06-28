@@ -1,60 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import Database from 'better-sqlite3'
+import { openDb, runMigrations } from '../../src/main/db.js'
 import { createReportsHandlers } from '../../src/main/ipc/reports.js'
 
 let db, handlers
 
 beforeEach(() => {
-  db = new Database(':memory:')
-  db.pragma('foreign_keys = ON')
-
-  db.exec(`
-    CREATE TABLE users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL
-    );
-
-    CREATE TABLE list_of_values (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      category TEXT NOT NULL,
-      value TEXT NOT NULL
-    );
-
-    CREATE TABLE consultants (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      is_active INTEGER NOT NULL DEFAULT 1
-    );
-
-    CREATE TABLE patients (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      last_name TEXT NOT NULL,
-      first_name TEXT NOT NULL,
-      mrn TEXT,
-      date_of_referral TEXT,
-      referral_source_id INTEGER REFERENCES list_of_values(id),
-      current_status TEXT NOT NULL DEFAULT 'ready_to_schedule',
-      is_active INTEGER NOT NULL DEFAULT 1
-    );
-
-    CREATE TABLE patient_status_history (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      patient_id INTEGER NOT NULL REFERENCES patients(id),
-      status TEXT NOT NULL,
-      changed_at TEXT NOT NULL DEFAULT (datetime('now')),
-      changed_by INTEGER REFERENCES users(id)
-    );
-
-    CREATE TABLE appointments (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      patient_id INTEGER NOT NULL REFERENCES patients(id),
-      date TEXT NOT NULL,
-      time TEXT NOT NULL,
-      consultant_id INTEGER REFERENCES consultants(id),
-      status TEXT NOT NULL DEFAULT 'scheduled'
-    );
-  `)
-
+  db = openDb(':memory:')
+  runMigrations(db)
   handlers = createReportsHandlers(db)
 })
 
@@ -156,7 +108,7 @@ describe('reports:firstAppointments', () => {
 
 describe('reports:patientsDropped', () => {
   it('returns dropped patients within date range', () => {
-    const userId = db.prepare("INSERT INTO users (name) VALUES ('Nurse Adams') RETURNING id").get().id
+    const userId = db.prepare("INSERT INTO users (name, email, password_hash, role) VALUES ('Nurse Adams', 'nurse@x.com', 'x', 'coordinator') RETURNING id").get().id
     const patientId = db.prepare("INSERT INTO patients (last_name, first_name) VALUES ('Green', 'Eve') RETURNING id").get().id
     db.prepare("INSERT INTO patient_status_history (patient_id, status, changed_at, changed_by) VALUES (?, 'dropped', ?, ?)").run(patientId, '2026-03-15 10:30:00', userId)
 
@@ -200,5 +152,61 @@ describe('reports:patientsDropped', () => {
     const result = handlers['reports:patientsDropped'](null, { from: '2026-03-01', to: '2026-03-31' })
     expect(result).toHaveLength(1)
     expect(result[0].changed_by_name).toBeNull()
+  })
+})
+
+// ── reports:sdatImprovement ───────────────────────────────────────────────
+
+describe('reports:sdatImprovement', () => {
+  const addPatient = (last, fields) => {
+    const cols = Object.keys(fields)
+    const sql = `INSERT INTO patients (last_name, first_name, ${cols.join(', ')}) VALUES (?, ?, ${cols.map(() => '?').join(', ')}) RETURNING id`
+    return db.prepare(sql).get(last, 'Test', ...cols.map(c => fields[c])).id
+  }
+
+  it('includes patients with both scores whose ending SDAT date is in range, with correct pct', () => {
+    // pct_improvement is read from the stored column (computed by patients.js
+    // when the scores were saved), not recalculated by the report.
+    addPatient('Smith', { sdat_begin_score: 40, sdat_begin_date: '2026-01-10', sdat_end_score: 20, sdat_end_date: '2026-06-10', sdat_pct_improvement: 50.0 })
+    const result = handlers['reports:sdatImprovement'](null, { from: '2026-06-01', to: '2026-06-30' })
+    expect(result).toHaveLength(1)
+    expect(result[0].last_name).toBe('Smith')
+    expect(result[0].begin_score).toBe(40)
+    expect(result[0].end_score).toBe(20)
+    expect(result[0].pct_improvement).toBe(50.0)
+  })
+
+  it('filters only on the ending date — begin date may be outside the range', () => {
+    addPatient('Early', { sdat_begin_score: 30, sdat_begin_date: '2024-02-01', sdat_end_score: 15, sdat_end_date: '2026-06-15', sdat_pct_improvement: 50.0 })
+    const result = handlers['reports:sdatImprovement'](null, { from: '2026-06-01', to: '2026-06-30' })
+    expect(result).toHaveLength(1)
+    expect(result[0].last_name).toBe('Early')
+  })
+
+  it('returns null pct_improvement when begin score is 0 (divide-by-zero guard)', () => {
+    addPatient('Zero', { sdat_begin_score: 0, sdat_begin_date: '2026-01-01', sdat_end_score: 0, sdat_end_date: '2026-06-05' })
+    const result = handlers['reports:sdatImprovement'](null, { from: '2026-06-01', to: '2026-06-30' })
+    expect(result).toHaveLength(1)
+    expect(result[0].pct_improvement).toBeNull()
+  })
+
+  it('excludes patients missing an end score or end date', () => {
+    addPatient('NoEnd', { sdat_begin_score: 30, sdat_begin_date: '2026-06-01' })
+    addPatient('NoEndDate', { sdat_begin_score: 30, sdat_end_score: 10 })
+    const result = handlers['reports:sdatImprovement'](null, { from: '2026-06-01', to: '2026-06-30' })
+    expect(result).toHaveLength(0)
+  })
+
+  it('excludes patients whose ending date is outside the range', () => {
+    addPatient('Outside', { sdat_begin_score: 30, sdat_begin_date: '2026-01-01', sdat_end_score: 10, sdat_end_date: '2025-12-31' })
+    const result = handlers['reports:sdatImprovement'](null, { from: '2026-06-01', to: '2026-06-30' })
+    expect(result).toHaveLength(0)
+  })
+
+  it('orders results by last name', () => {
+    addPatient('Zeta', { sdat_begin_score: 20, sdat_end_score: 10, sdat_end_date: '2026-06-10' })
+    addPatient('Alpha', { sdat_begin_score: 20, sdat_end_score: 10, sdat_end_date: '2026-06-12' })
+    const result = handlers['reports:sdatImprovement'](null, { from: '2026-06-01', to: '2026-06-30' })
+    expect(result.map(r => r.last_name)).toEqual(['Alpha', 'Zeta'])
   })
 })

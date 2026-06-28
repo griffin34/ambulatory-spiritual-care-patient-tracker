@@ -11,6 +11,7 @@ const registerAppointments = require('./ipc/appointments')
 const registerReports = require('./ipc/reports')
 const registerAdmin = require('./ipc/admin')
 const registerExcel = require('./ipc/excel')
+const registerVersion = require('./ipc/version')
 
 const isDev = process.env.NODE_ENV === 'development'
 
@@ -40,6 +41,7 @@ app.whenReady().then(() => {
   registerReports(ipcMain, db)
   registerAdmin(ipcMain, db)
   registerExcel(ipcMain, db)
+  registerVersion(ipcMain, db)
   const { dialog } = require('electron')
   ipcMain.handle('dialog:showSaveDialog', (_, args) => dialog.showSaveDialog(args))
   ipcMain.handle('dialog:showOpenDialog', (_, args) => dialog.showOpenDialog(args))
