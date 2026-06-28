@@ -65,7 +65,7 @@ export default function PatientDetail() {
   const [consultants, setConsultants] = useState([])
   const [apptTypes, setApptTypes] = useState([])
   const navigate = useNavigate()
-  const { token } = useAuth()
+  const { user } = useAuth()
 
   useEffect(() => {
     Promise.all([
@@ -85,7 +85,7 @@ export default function PatientDetail() {
   }, [id])
 
   const handleTransition = async (status) => {
-    await window.ipc.invoke('patients:transitionStatus', { patientId: patient.id, status, userId: null })
+    await window.ipc.invoke('patients:transitionStatus', { patientId: patient.id, status, userId: user?.id ?? null })
     const updated = await window.ipc.invoke('patients:get', { id: patient.id })
     setPatient(updated)
     setShowStatusMenu(false)
@@ -93,7 +93,7 @@ export default function PatientDetail() {
 
   const handleSaveProfile = async (form) => {
     if (isNew) {
-      const p = await window.ipc.invoke('patients:create', { ...form, userId: null })
+      const p = await window.ipc.invoke('patients:create', { ...form, userId: user?.id ?? null })
       navigate(`/queue/${p.id}`, { replace: true })
     } else {
       await window.ipc.invoke('patients:update', { id: patient.id, ...form })

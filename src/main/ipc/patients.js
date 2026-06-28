@@ -2,6 +2,18 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 function createPatientHandlers(db) {
+  const getPatientById = (id) => db.prepare(`
+    SELECT p.*,
+      rs.value as referral_source,
+      rel.value as religion,
+      lang.value as language
+    FROM patients p
+    LEFT JOIN list_of_values rs ON rs.id = p.referral_source_id
+    LEFT JOIN list_of_values rel ON rel.id = p.religion_id
+    LEFT JOIN list_of_values lang ON lang.id = p.language_id
+    WHERE p.id = ?
+  `).get(id)
+
   return {
     async createPatient({ last_name, first_name, middle_name, mrn, phone, date_of_referral, referral_source_id, religion_id, language_id, userId }) {
       const { lastInsertRowid } = db.prepare(`
@@ -16,17 +28,7 @@ function createPatientHandlers(db) {
     },
 
     async getPatient({ id }) {
-      const patient = db.prepare(`
-        SELECT p.*,
-          rs.value as referral_source,
-          rel.value as religion,
-          lang.value as language
-        FROM patients p
-        LEFT JOIN list_of_values rs ON rs.id = p.referral_source_id
-        LEFT JOIN list_of_values rel ON rel.id = p.religion_id
-        LEFT JOIN list_of_values lang ON lang.id = p.language_id
-        WHERE p.id = ?
-      `).get(id)
+      const patient = getPatientById(id)
       if (!patient) return null
       patient.statusHistory = db.prepare(`
         SELECT h.*, u.name as changed_by_name FROM patient_status_history h
@@ -46,10 +48,12 @@ function createPatientHandlers(db) {
     async listPatients({ status, referral_source_id, search }) {
       let sql = `
         SELECT p.*, rs.value as referral_source,
+          rel.value as religion,
           lang.value as language,
           (SELECT a.date || ' ' || a.time FROM appointments a WHERE a.patient_id = p.id AND a.status = 'scheduled' AND a.date >= date('now') ORDER BY a.date, a.time LIMIT 1) as next_appointment
         FROM patients p
         LEFT JOIN list_of_values rs ON rs.id = p.referral_source_id
+        LEFT JOIN list_of_values rel ON rel.id = p.religion_id
         LEFT JOIN list_of_values lang ON lang.id = p.language_id
         WHERE p.is_active = 1
       `
@@ -63,33 +67,21 @@ function createPatientHandlers(db) {
 
     async updatePatient({ id, ...fields }) {
       const allowed = ['last_name','first_name','middle_name','mrn','phone','date_of_referral','referral_source_id','religion_id','language_id']
+      const nullable = ['middle_name','mrn','phone','date_of_referral','referral_source_id','religion_id','language_id']
       const updates = Object.entries(fields).filter(([k]) => allowed.includes(k))
+        .map(([k, v]) => [k, nullable.includes(k) ? (v || null) : v])
       if (updates.length) {
         const sql = `UPDATE patients SET ${updates.map(([k]) => `${k} = ?`).join(', ')} WHERE id = ?`
         db.prepare(sql).run(...updates.map(([,v]) => v), id)
       }
-      return db.prepare(`
-        SELECT p.*, rs.value as referral_source, rel.value as religion, lang.value as language
-        FROM patients p
-        LEFT JOIN list_of_values rs ON rs.id = p.referral_source_id
-        LEFT JOIN list_of_values rel ON rel.id = p.religion_id
-        LEFT JOIN list_of_values lang ON lang.id = p.language_id
-        WHERE p.id = ?
-      `).get(id)
+      return getPatientById(id)
     },
 
     async transitionStatus({ patientId, status, userId }) {
       db.prepare('UPDATE patients SET current_status = ? WHERE id = ?').run(status, patientId)
       const userExists = userId ? db.prepare('SELECT id FROM users WHERE id = ?').get(userId) : null
       db.prepare('INSERT INTO patient_status_history (patient_id, status, changed_by) VALUES (?, ?, ?)').run(patientId, status, userExists ? userId : null)
-      return db.prepare(`
-        SELECT p.*, rs.value as referral_source, rel.value as religion, lang.value as language
-        FROM patients p
-        LEFT JOIN list_of_values rs ON rs.id = p.referral_source_id
-        LEFT JOIN list_of_values rel ON rel.id = p.religion_id
-        LEFT JOIN list_of_values lang ON lang.id = p.language_id
-        WHERE p.id = ?
-      `).get(patientId)
+      return getPatientById(patientId)
     }
   }
 }

@@ -27,16 +27,16 @@ function createReportsHandlers(db) {
           a.date AS first_appt_date,
           c.name AS consultant_name
         FROM patients p
-        JOIN appointments a ON a.patient_id = p.id
+        JOIN appointments a ON a.id = (
+          SELECT a2.id
+          FROM appointments a2
+          WHERE a2.patient_id = p.id
+            AND a2.status IN ('completed', 'scheduled')
+          ORDER BY a2.date ASC, a2.time ASC, a2.id ASC
+          LIMIT 1
+        )
         LEFT JOIN consultants c ON c.id = a.consultant_id
-        WHERE a.status IN ('completed', 'scheduled')
-          AND a.date = (
-            SELECT MIN(a2.date)
-            FROM appointments a2
-            WHERE a2.patient_id = p.id
-              AND a2.status IN ('completed', 'scheduled')
-          )
-          AND a.date >= ? AND a.date <= ?
+        WHERE a.date >= ? AND a.date <= ?
         ORDER BY first_appt_date ASC
       `).all(from, to)
     },

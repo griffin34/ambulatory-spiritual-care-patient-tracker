@@ -37,8 +37,13 @@ function createAdminHandlers(db) {
         db.prepare('UPDATE list_of_values SET value = ?, sort_order = ? WHERE id = ?').run(value, sort_order || 0, id)
         return db.prepare('SELECT * FROM list_of_values WHERE id = ?').get(id)
       }
-      const { lastInsertRowid } = db.prepare('INSERT INTO list_of_values (category, value, sort_order) VALUES (?, ?, ?)').run(category, value, sort_order || 0)
-      return db.prepare('SELECT * FROM list_of_values WHERE id = ?').get(lastInsertRowid)
+      // Re-adding a previously soft-deleted value would collide with UNIQUE(category, value);
+      // upsert so it is reactivated rather than throwing.
+      db.prepare(`
+        INSERT INTO list_of_values (category, value, sort_order) VALUES (?, ?, ?)
+        ON CONFLICT(category, value) DO UPDATE SET is_active = 1, sort_order = excluded.sort_order
+      `).run(category, value, sort_order || 0)
+      return db.prepare('SELECT * FROM list_of_values WHERE category = ? AND value = ?').get(category, value)
     },
 
     async deleteLov({ id }) {

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import React, { useState } from 'react'
-import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns'
+import { format, parseISO, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import DateRangePicker from '../components/DateRangePicker'
 import BarChart from '../components/BarChart'
 
@@ -88,7 +88,7 @@ export default function Reports() {
           channel="reports:firstAppointments"
           renderChart={rows => {
             const byWeek = rows.reduce((acc, r) => {
-              const week = format(new Date(r.first_appt_date), "'Wk of' MMM d")
+              const week = format(parseISO(r.first_appt_date), "'Wk of' MMM d")
               acc[week] = (acc[week] || 0) + 1
               return acc
             }, {})
@@ -105,7 +105,7 @@ export default function Reports() {
           channel="reports:patientsDropped"
           renderChart={rows => {
             const byWeek = rows.reduce((acc, r) => {
-              const week = format(new Date(r.changed_at), "'Wk of' MMM d")
+              const week = format(parseISO(r.changed_at.slice(0, 10)), "'Wk of' MMM d")
               acc[week] = (acc[week] || 0) + 1
               return acc
             }, {})
