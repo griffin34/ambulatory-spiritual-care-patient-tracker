@@ -1,13 +1,16 @@
 // Copyright (C) 2026 Jason Griffin
 // SPDX-License-Identifier: GPL-3.0-only
 
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 
 export default function Sidebar() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const [version, setVersion] = useState('')
+
+  useEffect(() => { window.ipc.invoke('app:getVersion').then(setVersion) }, [])
 
   const handleLogout = async () => {
     await logout()
@@ -46,6 +49,7 @@ export default function Sidebar() {
           <div className="user-name">{user?.name}</div>
         </div>
         <button className="logout-btn" onClick={handleLogout}>Sign out</button>
+        {version && <div className="app-version">v{version}</div>}
       </div>
     </aside>
   )

@@ -1,6 +1,6 @@
 {
   "name": "ambulatory-patients",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Ambulatory spiritual care patient tracker",
   "main": "src/main/index.js",
   "scripts": {

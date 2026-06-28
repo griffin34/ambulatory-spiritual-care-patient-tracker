@@ -58,6 +58,31 @@ function createReportsHandlers(db) {
         ORDER BY h.changed_at DESC
       `).all(from, to)
     },
+
+    'reports:sdatImprovement': (_, args) => {
+      const { from, to } = args || {}
+      // Cohort = patients whose ENDING (final) SDAT falls within the range, with
+      // both scores present. pct_improvement is precomputed and stored on the
+      // patient by patients.js whenever either score changes, so it's just read
+      // here rather than recalculated on every report run.
+      return db.prepare(`
+        SELECT
+          p.id,
+          p.last_name,
+          p.first_name,
+          p.sdat_begin_score AS begin_score,
+          p.sdat_begin_date  AS begin_date,
+          p.sdat_end_score   AS end_score,
+          p.sdat_end_date    AS end_date,
+          p.sdat_pct_improvement AS pct_improvement
+        FROM patients p
+        WHERE p.sdat_begin_score IS NOT NULL
+          AND p.sdat_end_score IS NOT NULL
+          AND p.sdat_end_date IS NOT NULL
+          AND p.sdat_end_date >= ? AND p.sdat_end_date <= ?
+        ORDER BY p.last_name, p.first_name
+      `).all(from, to)
+    },
   }
 }
 

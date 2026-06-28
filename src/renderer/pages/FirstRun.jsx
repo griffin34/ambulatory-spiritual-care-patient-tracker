@@ -16,6 +16,8 @@ export default function FirstRun() {
     if (form.password !== form.confirm) { setError('Passwords do not match'); return }
     try {
       const result = await window.ipc.invoke('auth:createFirstAdmin', { name: form.name, email: form.email, password: form.password })
+      // Brand-new install: suppress the "What's New" modal for the first user.
+      await window.ipc.invoke('app:markVersionSeen')
       completeFirstRun(result)
       navigate('/queue')
     } catch (err) {

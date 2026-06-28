@@ -4,6 +4,7 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import StatusBadge, { STATUS_CONFIG } from '../components/StatusBadge'
+import PrintButton from '../components/PrintButton'
 import { useAuth } from '../hooks/useAuth'
 import { format, parseISO } from 'date-fns'
 
@@ -103,11 +104,29 @@ export default function PatientDetail() {
     }
   }
 
+  const handleUpdatePatient = async (fields) => {
+    await window.ipc.invoke('patients:update', { id: patient.id, ...fields })
+    const updated = await window.ipc.invoke('patients:get', { id: patient.id })
+    setPatient(updated)
+  }
+
   const handleSaveAppt = async (form) => {
     await window.ipc.invoke('appointments:create', { patient_id: patient.id, ...form })
     const updated = await window.ipc.invoke('patients:get', { id: patient.id })
     setPatient(updated)
     setShowApptForm(false)
+  }
+
+  const handleDelete = async () => {
+    if (!confirm(`Delete ${patient.last_name}, ${patient.first_name}? It can be restored later from the Deleted filter on the Work Queue.`)) return
+    await window.ipc.invoke('patients:delete', { patientId: patient.id, userId: user?.id ?? null })
+    navigate('/queue')
+  }
+
+  const handleRestore = async () => {
+    await window.ipc.invoke('patients:restore', { patientId: patient.id, userId: user?.id ?? null })
+    const updated = await window.ipc.invoke('patients:get', { id: patient.id })
+    setPatient(updated)
   }
 
   if (!isNew && !patient) return <div className="loading-screen">Loading…</div>
@@ -117,7 +136,11 @@ export default function PatientDetail() {
       <div className="topbar">
         <div className="breadcrumb"><Link to="/queue">Work Queue</Link> › {isNew ? 'New Patient' : `${patient.last_name}, ${patient.first_name}`}</div>
         <div className="topbar-right">
+          {!isNew && <PrintButton orientation="portrait" />}
           {!isNew && <button className="btn btn-outline" onClick={() => setEditingProfile(true)}>Edit Profile</button>}
+          {!isNew && (patient.current_status === 'deleted'
+            ? <button className="btn btn-outline" onClick={handleRestore}>Restore</button>
+            : <button className="btn btn-outline btn-danger" onClick={handleDelete}>Delete</button>)}
           {!isNew && <button className="btn btn-primary" onClick={() => setShowApptForm(true)}>+ Add Appointment</button>}
         </div>
       </div>
@@ -151,6 +174,9 @@ export default function PatientDetail() {
 
           <ProfileCard patient={patient} editing={editingProfile} lovs={lovs} onSave={handleSaveProfile} onCancel={() => { setEditingProfile(false); if (isNew) navigate('/queue') }} />
 
+          {!isNew && <SdatCard patient={patient} onSave={handleUpdatePatient} />}
+          {!isNew && <NotesCard patient={patient} onSave={handleUpdatePatient} />}
+
           {!isNew && patient.statusHistory?.length > 0 && (
             <div className="card">
               <div className="card-header"><h3>Status History</h3></div>
@@ -171,6 +197,9 @@ export default function PatientDetail() {
 
         {!isNew && (
           <div className="detail-right">
+            {/* Page 2 in print (forced page-break below); since it's a separate
+                physical page, it needs its own patient-identifying header. */}
+            <div className="print-only print-page-header">{patient.last_name}, {patient.first_name} — Schedule</div>
             <div className="card">
               <div className="card-header"><h3>Appointments</h3></div>
               <div className="card-body">
@@ -180,7 +209,10 @@ export default function PatientDetail() {
                     .filter(a => countable.includes(a.status))
                     .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
                   const apptNumbers = Object.fromEntries(numbered.map((a, i) => [a.id, i + 1]))
-                  return patient.appointments?.map(a => (
+                  if (!patient.appointments?.length) {
+                    return <div className="field-value" style={{ color: '#a0aec0', fontStyle: 'italic', padding: '8px 0' }}>No appointments</div>
+                  }
+                  return patient.appointments.map(a => (
                   <AppointmentCard key={a.id} appt={a} apptNumber={apptNumbers[a.id]} consultants={consultants} types={apptTypes} onUpdate={async (fields) => {
                     await window.ipc.invoke('appointments:update', { id: a.id, ...fields })
                     const updated = await window.ipc.invoke('patients:get', { id: patient.id })
@@ -188,7 +220,7 @@ export default function PatientDetail() {
                   }} />
                 ))})()}
                 {showApptForm && <AppointmentForm consultants={consultants} types={apptTypes} countedAppts={(patient.appointments || []).filter(a => ['scheduled','completed'].includes(a.status)).length} onSave={handleSaveAppt} onCancel={() => setShowApptForm(false)} />}
-                {!showApptForm && <button className="add-appt-btn" onClick={() => setShowApptForm(true)}>+ Add Appointment</button>}
+                {!showApptForm && <button className="add-appt-btn no-print" onClick={() => setShowApptForm(true)}>+ Add Appointment</button>}
               </div>
             </div>
           </div>
@@ -253,6 +285,177 @@ function ProfileCard({ patient, editing, lovs, onSave, onCancel }) {
   )
 }
 
+function buildSdatForm(patient) {
+  return {
+    sdat_begin_score: patient?.sdat_begin_score ?? '', sdat_begin_date: patient?.sdat_begin_date || '',
+    sdat_end_score: patient?.sdat_end_score ?? '', sdat_end_date: patient?.sdat_end_date || ''
+  }
+}
+
+function SdatCard({ patient, onSave }) {
+  const [editing, setEditing] = useState(false)
+  const [form, setForm] = useState(() => buildSdatForm(patient))
+  const [error, setError] = useState('')
+
+  // Refresh from the latest patient data — but never while the user has this
+  // card open for editing. A sibling card's save (e.g. Notes) also refetches
+  // the patient and changes this reference; without the `editing` guard, that
+  // would silently wipe out unsaved SDAT edits still in progress.
+  useEffect(() => {
+    if (editing) return
+    setForm(buildSdatForm(patient))
+  }, [patient, editing])
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    for (const k of ['sdat_begin_score', 'sdat_end_score']) {
+      if (form[k] !== '' && form[k] !== null) {
+        const n = Number(form[k])
+        if (!Number.isInteger(n) || n < 0 || n > 40) { setError('SDAT scores must be whole numbers between 0 and 40.'); return }
+      }
+    }
+    setError('')
+    await onSave(form)
+    setEditing(false)
+  }
+
+  const handleCancel = () => {
+    setForm(buildSdatForm(patient))
+    setError('')
+    setEditing(false)
+  }
+
+  if (!editing) {
+    return (
+      <div className="card">
+        <div className="card-header">
+          <h3>SDAT</h3>
+          <button className="icon-btn no-print" onClick={() => setEditing(true)} title="Edit SDAT">✏️</button>
+        </div>
+        <div className="card-body">
+          {[['SDAT Begin', patient.sdat_begin_score != null ? `${patient.sdat_begin_score}${patient.sdat_begin_date ? ` (${patient.sdat_begin_date})` : ''}` : null],
+            ['SDAT End', patient.sdat_end_score != null ? `${patient.sdat_end_score}${patient.sdat_end_date ? ` (${patient.sdat_end_date})` : ''}` : null],
+            ['% Improvement', patient.sdat_pct_improvement != null ? `${patient.sdat_pct_improvement}%` : null]].map(([label, value]) => (
+            <div key={label} className="field-row">
+              <span className="field-label">{label}</span>
+              <span className="field-value">{value || '—'}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // Live preview only — the persisted value (read above) is computed and
+  // stored server-side by patients.js whenever a score is saved.
+  const liveBegin = form.sdat_begin_score === '' ? null : Number(form.sdat_begin_score)
+  const liveEnd = form.sdat_end_score === '' ? null : Number(form.sdat_end_score)
+  const livePct = (liveBegin != null && liveEnd != null && liveBegin !== 0 && Number.isFinite(liveBegin) && Number.isFinite(liveEnd))
+    ? Math.round((liveBegin - liveEnd) * 1000 / liveBegin) / 10
+    : null
+
+  return (
+    <div className="card">
+      <div className="card-header"><h3>Edit SDAT</h3></div>
+      <div className="card-body">
+        <form onSubmit={handleSubmit}>
+          {error && <div className="login-error">{error}</div>}
+          {[['sdat_begin_score','SDAT Begin Score','sdat_begin_date','SDAT Begin Date'],['sdat_end_score','SDAT End Score','sdat_end_date','SDAT End Date']].map(([scoreField, scoreLabel, dateField, dateLabel]) => (
+            <div key={scoreField} style={{ display:'flex', gap:8 }}>
+              <div className="field" style={{ flex:1 }}>
+                <label>{scoreLabel}</label>
+                <input type="number" min={0} max={40} value={form[scoreField]} onChange={e => {
+                  const value = e.target.value
+                  setForm(f => ({
+                    ...f,
+                    [scoreField]: value,
+                    // Default the date to today the first time a score is entered.
+                    [dateField]: (value !== '' && !f[dateField]) ? format(new Date(), 'yyyy-MM-dd') : f[dateField]
+                  }))
+                }} />
+              </div>
+              <div className="field" style={{ flex:1 }}>
+                <label>{dateLabel}</label>
+                <input type="date" value={form[dateField]} onChange={e => setForm(f => ({...f, [dateField]: e.target.value}))} />
+              </div>
+            </div>
+          ))}
+          {livePct != null && (
+            <div className="field-row">
+              <span className="field-label">% Improvement</span>
+              <span className="field-value">{livePct}%</span>
+            </div>
+          )}
+          <div className="form-actions">
+            <button type="button" className="btn btn-outline" onClick={handleCancel}>Cancel</button>
+            <button type="submit" className="btn btn-primary">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function NotesCard({ patient, onSave }) {
+  const [editing, setEditing] = useState(false)
+  const [notes, setNotes] = useState(patient?.notes || '')
+  const [error, setError] = useState('')
+
+  // See SdatCard's matching effect above: skip refreshing while this card is
+  // open for editing, so a sibling card's save can't wipe out unsaved notes.
+  useEffect(() => {
+    if (editing) return
+    setNotes(patient?.notes || '')
+  }, [patient, editing])
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if ((notes || '').length > 256) { setError('Notes must be 256 characters or fewer.'); return }
+    setError('')
+    await onSave({ notes })
+    setEditing(false)
+  }
+
+  const handleCancel = () => {
+    setNotes(patient?.notes || '')
+    setError('')
+    setEditing(false)
+  }
+
+  if (!editing) {
+    return (
+      <div className="card">
+        <div className="card-header">
+          <h3>Notes</h3>
+          <button className="icon-btn no-print" onClick={() => setEditing(true)} title="Edit notes">✏️</button>
+        </div>
+        <div className="card-body">
+          <div className="field-value" style={{ whiteSpace: 'pre-wrap' }}>{patient.notes || '—'}</div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="card">
+      <div className="card-header"><h3>Edit Notes</h3></div>
+      <div className="card-body">
+        <form onSubmit={handleSubmit}>
+          {error && <div className="login-error">{error}</div>}
+          <div className="field">
+            <textarea value={notes} maxLength={256} rows={3} onChange={e => setNotes(e.target.value)} />
+            <small style={{ color:'#718096' }}>{(notes || '').length}/256</small>
+          </div>
+          <div className="form-actions">
+            <button type="button" className="btn btn-outline" onClick={handleCancel}>Cancel</button>
+            <button type="submit" className="btn btn-primary">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 function AppointmentCard({ appt, apptNumber, onUpdate, consultants, types }) {
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({ date: appt.date, time: appt.time, type_id: appt.type_id || '', consultant_id: appt.consultant_id || '', is_last_appointment: appt.is_last_appointment || 0, notes: appt.notes || '', status: appt.status })
@@ -301,7 +504,7 @@ function AppointmentCard({ appt, apptNumber, onUpdate, consultants, types }) {
       </div>
       <div className="appt-right">
         <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20, textTransform:'uppercase', background: APPT_STATUS_COLORS[appt.status]+'22', color: APPT_STATUS_COLORS[appt.status] }}>{appt.status.replace('_',' ')}</span>
-        <button className="btn-sm" onClick={() => setEditing(true)}>Edit</button>
+        <button className="btn-sm no-print" onClick={() => setEditing(true)}>Edit</button>
       </div>
     </div>
   )
