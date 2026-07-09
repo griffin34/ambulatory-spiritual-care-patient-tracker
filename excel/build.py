@@ -29,7 +29,10 @@ SHEET_HEADERS = {
     '_data_patients': [
         'id', 'mrn', 'last_name', 'first_name', 'middle_name', 'phone',
         'date_of_referral', 'referral_source_id', 'religion_id', 'language_id',
-        'current_status', 'is_active', 'created_at',
+        'current_status', 'is_active',
+        'sdat_begin_score', 'sdat_begin_date', 'sdat_end_score', 'sdat_end_date',
+        'sdat_pct_improvement', 'notes',
+        'created_at',
     ],
     '_data_status_history': [
         'id', 'patient_id', 'status', 'changed_by', 'changed_at',
