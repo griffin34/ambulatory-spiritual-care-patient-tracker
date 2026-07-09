@@ -2,7 +2,10 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from build import DATA_SHEETS, UI_SHEETS, SHEET_HEADERS, SEED_LOV, SEED_SETTINGS, SEED_CONSULTANTS
+from build import (
+    DATA_SHEETS, UI_SHEETS, SHEET_HEADERS, SEED_LOV, SEED_SETTINGS, SEED_CONSULTANTS,
+    ANCHOR_SHEET,
+)
 
 
 def test_data_sheets_order():
@@ -119,3 +122,11 @@ def test_no_orphan_header_keys():
 def test_no_duplicate_columns():
     for sheet_name, cols in SHEET_HEADERS.items():
         assert len(cols) == len(set(cols)), f'Duplicate column in {sheet_name}: {cols}'
+
+
+def test_anchor_sheet_distinct_from_data_and_ui_sheets():
+    # Excel refuses to hide the last remaining visible sheet in a workbook, so
+    # Workbook_Open hides all UI sheets behind this always-visible anchor sheet
+    # instead. It must never collide with a data or UI sheet name.
+    assert ANCHOR_SHEET not in DATA_SHEETS
+    assert ANCHOR_SHEET not in UI_SHEETS

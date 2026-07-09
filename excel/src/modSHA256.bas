@@ -118,7 +118,7 @@ Private Sub InitK(k() As Long)
     k(48)=&H19A4C116: k(49)=&H1E376C08: k(50)=&H2748774C: k(51)=&H34B0BCB5
     k(52)=&H391C0CB3: k(53)=&H4ED8AA4A: k(54)=&H5B9CCA4F: k(55)=&H682E6FF3
     k(56)=&H748F82EE: k(57)=&H78A5636F: k(58)=&H84C87814: k(59)=&H8CC70208
-    k(60)=&H90BEFFFA: k(61)=&HA4506CEB: k(62)=&HBE0A62DC: k(63)=&HC67178F2
+    k(60)=&H90BEFFFA: k(61)=&HA4506CEB: k(62)=&HBEF9A3F7: k(63)=&HC67178F2
 End Sub
 
 ' ── 32-bit arithmetic via Double (avoids signed Long overflow) ─────────────────
@@ -140,9 +140,9 @@ End Function
 
 ' Right rotate by n bits
 Private Function RR(x As Long, n As Long) As Long
-    Dim u As Double: u = U(x)
+    Dim ux As Double: ux = U(x)
     Dim pw As Double: pw = 2# ^ n
-    RR = L(Int(u / pw) + (u - Int(u / pw) * pw) * (4294967296# / pw))
+    RR = L(Int(ux / pw) + (ux - Int(ux / pw) * pw) * (4294967296# / pw))
 End Function
 
 ' Logical right shift by n bits

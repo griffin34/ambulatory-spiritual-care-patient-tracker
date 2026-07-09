@@ -17,6 +17,11 @@ DATA_SHEETS = [
 
 UI_SHEETS = ['WorkQueue', 'Appointments', 'Reports', 'Admin']
 
+# Always-visible placeholder sheet. Excel refuses to hide the last remaining
+# visible sheet in a workbook, so Workbook_Open hides the 4 UI sheets behind
+# this one instead of trying to hide every non-data sheet.
+ANCHOR_SHEET = 'Splash'
+
 SHEET_HEADERS = {
     '_data_users': [
         'id', 'name', 'email', 'password_hash', 'role', 'is_active', 'created_at',
@@ -120,6 +125,7 @@ def build_workbook(output_path=None, src_dir=None):
         _write_headers(wb)
         _seed_data(wb)
         _import_vba(wb, src_dir)
+        _configure_thisworkbook(wb, src_dir)
         _configure_workbook(wb)
         _save_workbook(wb, output_path)
         print(f'Built: {output_path}')
@@ -131,7 +137,7 @@ def build_workbook(output_path=None, src_dir=None):
 
 
 def _setup_sheets(wb):
-    """Create data sheets then UI sheets in the specified order."""
+    """Create data sheets, then UI sheets, then the anchor sheet, in that order."""
     while len(wb.sheets) > 1:
         wb.sheets[-1].delete()
     wb.sheets[0].name = DATA_SHEETS[0]
@@ -139,6 +145,11 @@ def _setup_sheets(wb):
         wb.sheets.add(name=name, after=wb.sheets[-1])
     for name in UI_SHEETS:
         wb.sheets.add(name=name, after=wb.sheets[-1])
+    wb.sheets.add(name=ANCHOR_SHEET, after=wb.sheets[-1])
+    anchor = wb.sheets[ANCHOR_SHEET]
+    anchor.range('A1').value = 'Ambulatory Patient Tracking'
+    anchor.range('A1').font.bold = True
+    anchor.range('A1').font.size = 14
 
 
 def _write_headers(wb):
@@ -176,6 +187,12 @@ def _seed_data(wb):
         cons_ws.cells(row_idx, 4).value = is_active
 
 
+# ThisWorkbook always exists in a new workbook and can't be Import()ed like a
+# normal component — its code is merged into the existing module separately
+# by _configure_thisworkbook().
+_THISWORKBOOK_FILENAME = 'ThisWorkbook.cls'
+
+
 def _import_vba(wb, src_dir):
     """Import .bas, .cls, and .frm source files from src_dir into the VBA project.
 
@@ -192,12 +209,14 @@ def _import_vba(wb, src_dir):
         vba_files = sorted(
             f for f in os.listdir(src_dir)
             if os.path.splitext(f)[1].lower() in ('.bas', '.cls', '.frm')
+            and f != _THISWORKBOOK_FILENAME
         )
         print('\n  ⚠️  VBA import skipped (Mac/appscript limitation).')
         print('  Open the saved workbook in Excel, then in the VBA editor (⌥F11):')
         print('    File → Import File — import each of these in order:')
         for f in vba_files:
             print(f'      {os.path.join(src_dir, f)}')
+        print(f'  Then manually paste the code from {_THISWORKBOOK_FILENAME} into ThisWorkbook.')
         print()
         return
     except Exception:
@@ -209,11 +228,44 @@ def _import_vba(wb, src_dir):
             'Macro Settings → check "Trust access to the VBA project object model"'
         )
     for filename in sorted(os.listdir(src_dir)):
+        if filename == _THISWORKBOOK_FILENAME:
+            continue
         ext = os.path.splitext(filename)[1].lower()
         if ext in ('.bas', '.cls', '.frm'):
             filepath = os.path.abspath(os.path.join(src_dir, filename))
             vbp.VBComponents.Import(filepath)
             print(f'  Imported: {filename}')
+
+
+def _configure_thisworkbook(wb, src_dir):
+    """Inject ThisWorkbook.cls's code body into the workbook's built-in ThisWorkbook module.
+
+    ThisWorkbook always exists and can't be replaced via VBComponents.Import(), so
+    its code is copied in line-by-line instead, skipping the exported .cls header
+    (VERSION/BEGIN/END/Attribute lines) which only applies to standalone import.
+    """
+    path = os.path.join(src_dir, _THISWORKBOOK_FILENAME)
+    if not os.path.isfile(path):
+        print(f'  {_THISWORKBOOK_FILENAME} not found, skipping ThisWorkbook code injection')
+        return
+    with open(path, 'r', encoding='utf-8', errors='replace') as f:
+        lines = f.readlines()
+
+    body_start = 0
+    for i, line in enumerate(lines):
+        if line.strip().startswith('Attribute VB_'):
+            body_start = i + 1
+    body = ''.join(lines[body_start:]).lstrip('\n')
+
+    try:
+        vbp = wb.api.VBProject
+    except AttributeError:
+        return  # Mac path already printed instructions in _import_vba
+    cm = vbp.VBComponents('ThisWorkbook').CodeModule
+    if cm.CountOfLines > 0:
+        cm.DeleteLines(1, cm.CountOfLines)
+    cm.AddFromString(body)
+    print(f'  Configured: ThisWorkbook')
 
 
 def _save_workbook(wb, output_path):
@@ -227,13 +279,25 @@ def _save_workbook(wb, output_path):
 
 
 def _configure_workbook(wb):
-    """Hide all data sheets and activate WorkQueue."""
+    """Very-hide all data sheets, hide the UI sheets, and activate the anchor sheet.
+
+    Data sheets are set fully xlSheetVeryHidden (2) so they can't be revealed via
+    the right-click Unhide menu, only from VBA. UI sheets start hidden too — they
+    only become visible after a successful login (see ThisWorkbook/LoginForm) —
+    leaving Splash as the sole visible sheet, which is required: Excel refuses to
+    leave a workbook with zero visible sheets.
+    """
     for name in DATA_SHEETS:
+        try:
+            wb.sheets[name].api.Visible = 2  # xlSheetVeryHidden
+        except AttributeError:
+            wb.sheets[name].visible = False  # Mac: no very-hidden via appscript
+    for name in UI_SHEETS:
         wb.sheets[name].visible = False
     try:
-        wb.sheets['WorkQueue'].activate()
+        wb.sheets[ANCHOR_SHEET].activate()
     except Exception:
-        pass  # Mac invisible app cannot activate sheets; WorkQueue is still first visible
+        pass  # Mac invisible app cannot activate sheets; anchor is still first visible
 
 
 if __name__ == '__main__':
