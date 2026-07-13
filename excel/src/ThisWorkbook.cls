@@ -22,9 +22,8 @@ Private Sub Workbook_Open()
     Dim usersWs As Worksheet
     Set usersWs = modUtils.DataSheet("_data_users")
     If modUtils.LastDataRow(usersWs) < 2 Then
-        MsgBox "First run: no user accounts exist." & vbCrLf & vbCrLf & _
-               "An admin account must be created before the application can be used.", _
-               vbInformation, "Ambulatory Patient Tracking - Setup Required"
+        AddUserForm.FirstRunMode = True
+        AddUserForm.Show
         Exit Sub
     End If
 

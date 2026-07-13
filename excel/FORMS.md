@@ -44,6 +44,13 @@ Prefix every control name by type, `camelCase` after the prefix:
 `passwordLabel` for its three labels — leave it as-is, don't rename working
 code; just follow the convention for everything new.)
 
+## Default font
+
+Every control's Font property is **Tahoma, Regular, 8pt** unless a control's
+property table explicitly lists a `Font:` entry — that's the VBA Toolbox
+default (verified against `LoginForm.emailLabel`, which was never touched).
+Don't set Font on a control unless its row says to.
+
 ## General steps (repeat per form)
 
 1. **Insert the form.** In the VBA editor (Alt+F11), right-click the project
@@ -116,11 +123,11 @@ functions).
 | `lblLanguageCaption` | Label | Caption: `Language:`; Height 16; Left 10; Top 136; Width 60 |
 | `lblLanguage` | Label | Caption: *(blank)*; Height 16; Left 75; Top 136; Width 180 |
 | `lblStatusBadge` | Label | BackColor: *(set at runtime per status)*; Caption: *(blank, set at runtime)*; Height 20; Left 10; TextAlign: `2 - fmTextAlignCenter`; Top 164; Width 120 |
+| `lblStatusHistoryHeader` | Label | Caption: `Status History`; Font: Bold; Height 16; Left 10; Top 224; Width 260 |
 | `cboChangeStatus` | ComboBox | Height 20; Left 140; Style: `2 - fmStyleDropDownList`; Top 164; Width 120 |
+| `lstStatusHistory` | ListBox | ColumnCount: `3`; ColumnWidths: `80 pt;90 pt;80 pt`; Height 130; Left 10; Top 244; Width 260 |
 | `btnApplyStatus` | CommandButton | Caption: `Apply`; Height 20; Left 270; Top 164; Width 60 |
 | `btnEditPatient` | CommandButton | Caption: `Edit Patient...`; Height 22; Left 10; Top 194; Width 120 |
-| `lblStatusHistoryHeader` | Label | Caption: `Status History`; Font: Bold; Height 16; Left 10; Top 224; Width 260 |
-| `lstStatusHistory` | ListBox | ColumnCount: `3`; ColumnWidths: `80 pt;90 pt;80 pt`; Height 130; Left 10; Top 244; Width 260 |
 
 **Controls — right panel (appointments)**
 
@@ -142,17 +149,17 @@ Electron app's pencil-icon cards. `deleted` is only reachable via
 |---|---|---|
 | `lblSdatHeader` | Label | Caption: `SDAT`; Font: Bold; Height 16; Left 10; Top 390; Width 260 |
 | `lblSdatBeginCaption` | Label | Caption: `Begin Score:`; Height 16; Left 10; Top 410; Width 70 |
-| `txtSdatBeginScore` | TextBox | Height 20; Left 85; Top 408; Width 40 |
 | `lblSdatBeginDateCaption` | Label | Caption: `Date:`; Height 16; Left 130; Top 410; Width 35 |
-| `txtSdatBeginDate` | TextBox | Height 20; Left 168; Top 408; Width 80 |
 | `lblSdatEndCaption` | Label | Caption: `End Score:`; Height 16; Left 255; Top 410; Width 65 |
-| `txtSdatEndScore` | TextBox | Height 20; Left 322; Top 408; Width 40 |
 | `lblSdatEndDateCaption` | Label | Caption: `Date:`; Height 16; Left 365; Top 410; Width 35 |
-| `txtSdatEndDate` | TextBox | Height 20; Left 403; Top 408; Width 80 |
 | `lblSdatPctImprovement` | Label | Caption: *(blank, set at runtime)*; Height 16; Left 10; Top 434; Width 200 |
-| `btnSaveSdat` | CommandButton | Caption: `Save SDAT`; Height 20; Left 220; Top 432; Width 90 |
 | `lblNotesHeader` | Label | Caption: `Notes`; Font: Bold; Height 16; Left 10; Top 460; Width 260 |
+| `txtSdatBeginScore` | TextBox | Height 20; Left 85; Top 408; Width 40 |
+| `txtSdatBeginDate` | TextBox | Height 20; Left 168; Top 408; Width 80 |
+| `txtSdatEndScore` | TextBox | Height 20; Left 322; Top 408; Width 40 |
+| `txtSdatEndDate` | TextBox | Height 20; Left 403; Top 408; Width 80 |
 | `txtNotes` | TextBox | Height 40; Left 10; MaxLength: `256`; MultiLine: `True`; ScrollBars: `2 - fmScrollBarsVertical`; Top 478; Width 400 |
+| `btnSaveSdat` | CommandButton | Caption: `Save SDAT`; Height 20; Left 220; Top 432; Width 90 |
 | `btnSaveNotes` | CommandButton | Caption: `Save Notes`; Height 20; Left 420; Top 478; Width 90 |
 | `btnDeletePatient` | CommandButton | Caption: `Delete Patient`; Height 22; Left 10; Top 524; Width 110 |
 | `btnRestorePatient` | CommandButton | Caption: `Restore Patient`; Height 22; Left 10; Top 524; Visible: `False`; Width 110 |
@@ -280,25 +287,25 @@ End Sub
 | Control | Type | Properties (alphabetical) |
 |---|---|---|
 | `lblMrn` | Label | Caption: `MRN:`; Height 16; Left 10; Top 12; Width 90 |
-| `txtMrn` | TextBox | Height 20; Left 110; Top 10; Width 200 |
 | `lblLastName` | Label | Caption: `Last Name:`; Height 16; Left 10; Top 38; Width 90 |
-| `txtLastName` | TextBox | Height 20; Left 110; Top 36; Width 200 |
 | `lblFirstName` | Label | Caption: `First Name:`; Height 16; Left 10; Top 64; Width 90 |
-| `txtFirstName` | TextBox | Height 20; Left 110; Top 62; Width 200 |
 | `lblMiddleName` | Label | Caption: `Middle Name:`; Height 16; Left 10; Top 90; Width 90 |
-| `txtMiddleName` | TextBox | Height 20; Left 110; Top 88; Width 200 |
 | `lblPhone` | Label | Caption: `Phone:`; Height 16; Left 10; Top 116; Width 90 |
-| `txtPhone` | TextBox | Height 20; Left 110; Top 114; Width 200 |
 | `lblReferralDate` | Label | Caption: `Referral Date:`; Height 16; Left 10; Top 142; Width 90 |
-| `txtReferralDate` | TextBox | Height 20; Left 110; Top 140; Width 120 |
 | `lblReferralDateHint` | Label | Caption: `(YYYY-MM-DD)`; Font: Italic, 8pt; Height 16; Left 235; Top 142; Width 75 |
 | `lblReferralSource` | Label | Caption: `Referral Source:`; Height 16; Left 10; Top 168; Width 90 |
-| `cboReferralSource` | ComboBox | Height 20; Left 110; Style: `2 - fmStyleDropDownList`; Top 166; Width 200 |
 | `lblReligion` | Label | Caption: `Religion:`; Height 16; Left 10; Top 194; Width 90 |
-| `cboReligion` | ComboBox | Height 20; Left 110; Style: `2 - fmStyleDropDownList`; Top 192; Width 200 |
 | `lblLanguage` | Label | Caption: `Language:`; Height 16; Left 10; Top 220; Width 90 |
-| `cboLanguage` | ComboBox | Height 20; Left 110; Style: `2 - fmStyleDropDownList`; Top 218; Width 200 |
 | `lblError` | Label | Caption: *(blank)*; ForeColor: red; Height 16; Left 10; TextAlign: `2 - fmTextAlignCenter`; Top 246; Visible: `False`; Width 300 |
+| `txtMrn` | TextBox | Height 20; Left 110; Top 10; Width 200 |
+| `txtLastName` | TextBox | Height 20; Left 110; Top 36; Width 200 |
+| `txtFirstName` | TextBox | Height 20; Left 110; Top 62; Width 200 |
+| `txtMiddleName` | TextBox | Height 20; Left 110; Top 88; Width 200 |
+| `txtPhone` | TextBox | Height 20; Left 110; Top 114; Width 200 |
+| `txtReferralDate` | TextBox | Height 20; Left 110; Top 140; Width 120 |
+| `cboReferralSource` | ComboBox | Height 20; Left 110; Style: `2 - fmStyleDropDownList`; Top 166; Width 200 |
+| `cboReligion` | ComboBox | Height 20; Left 110; Style: `2 - fmStyleDropDownList`; Top 192; Width 200 |
+| `cboLanguage` | ComboBox | Height 20; Left 110; Style: `2 - fmStyleDropDownList`; Top 218; Width 200 |
 | `btnSave` | CommandButton | Caption: `Save`; Default: `True`; Height 24; Left 140; Top 268; Width 80 |
 | `btnCancel` | CommandButton | Caption: `Cancel`; Height 24; Left 230; Top 268; Width 80 |
 
@@ -363,19 +370,19 @@ End Sub
 | Control | Type | Properties (alphabetical) |
 |---|---|---|
 | `lblDate` | Label | Caption: `Date:`; Height 16; Left 10; Top 12; Width 90 |
-| `txtDate` | TextBox | Height 20; Left 110; Top 10; Width 120 |
 | `lblTime` | Label | Caption: `Time:`; Height 16; Left 10; Top 38; Width 90 |
-| `txtTime` | TextBox | Height 20; Left 110; Top 36; Width 80 |
 | `lblType` | Label | Caption: `Type:`; Height 16; Left 10; Top 64; Width 90 |
-| `cboType` | ComboBox | Height 20; Left 110; Style: `2 - fmStyleDropDownList`; Top 62; Width 180 |
 | `lblConsultant` | Label | Caption: `Consultant:`; Height 16; Left 10; Top 90; Width 90 |
-| `cboConsultant` | ComboBox | Height 20; Left 110; Style: `2 - fmStyleDropDownList`; Top 88; Width 180 |
-| `chkLastAppointment` | CheckBox | Caption: `This is the last appointment`; Height 18; Left 10; Top 116; Width 220 |
 | `lblStatus` | Label | Caption: `Status:`; Height 16; Left 10; Top 142; Width 90 |
-| `cboStatus` | ComboBox | Height 20; Left 110; Style: `2 - fmStyleDropDownList`; Top 140; Width 180 |
 | `lblNotes` | Label | Caption: `Notes:`; Height 16; Left 10; Top 168; Width 90 |
-| `txtNotes` | TextBox | EnterKeyBehavior: `True`; Height 60; Left 10; MultiLine: `True`; ScrollBars: `2 - fmScrollBarsVertical`; Top 186; Width 280 |
 | `lblError` | Label | Caption: *(blank)*; ForeColor: red; Height 16; Left 10; TextAlign: `2 - fmTextAlignCenter`; Top 250; Visible: `False`; Width 280 |
+| `txtDate` | TextBox | Height 20; Left 110; Top 10; Width 120 |
+| `txtTime` | TextBox | Height 20; Left 110; Top 36; Width 80 |
+| `txtNotes` | TextBox | EnterKeyBehavior: `True`; Height 60; Left 10; MultiLine: `True`; ScrollBars: `2 - fmScrollBarsVertical`; Top 186; Width 280 |
+| `cboType` | ComboBox | Height 20; Left 110; Style: `2 - fmStyleDropDownList`; Top 62; Width 180 |
+| `cboConsultant` | ComboBox | Height 20; Left 110; Style: `2 - fmStyleDropDownList`; Top 88; Width 180 |
+| `cboStatus` | ComboBox | Height 20; Left 110; Style: `2 - fmStyleDropDownList`; Top 140; Width 180 |
+| `chkLastAppointment` | CheckBox | Caption: `This is the last appointment`; Height 18; Left 10; Top 116; Width 220 |
 | `btnSave` | CommandButton | Caption: `Save`; Default: `True`; Height 24; Left 120; Top 272; Width 80 |
 | `btnCancel` | CommandButton | Caption: `Cancel`; Height 24; Left 210; Top 272; Width 80 |
 
@@ -447,16 +454,16 @@ empty. Plan 6 should replace that `MsgBox` with
 | Control | Type | Properties (alphabetical) |
 |---|---|---|
 | `lblName` | Label | Caption: `Name:`; Height 16; Left 10; Top 12; Width 90 |
-| `txtName` | TextBox | Height 20; Left 100; Top 10; Width 180 |
 | `lblEmail` | Label | Caption: `Email:`; Height 16; Left 10; Top 38; Width 90 |
-| `txtEmail` | TextBox | Height 20; Left 100; Top 36; Width 180 |
 | `lblPassword` | Label | Caption: `Password:`; Height 16; Left 10; Top 64; Width 90 |
-| `txtPassword` | TextBox | Height 20; Left 100; PasswordChar: `*`; Top 62; Width 180 |
 | `lblConfirmPassword` | Label | Caption: `Confirm Password:`; Height 16; Left 10; Top 90; Width 90 |
-| `txtConfirmPassword` | TextBox | Height 20; Left 100; PasswordChar: `*`; Top 88; Width 180 |
 | `lblRole` | Label | Caption: `Role:`; Height 16; Left 10; Top 116; Width 90 |
-| `cboRole` | ComboBox | Height 20; Left 100; Style: `2 - fmStyleDropDownList`; Top 114; Width 180 |
 | `lblError` | Label | Caption: *(blank)*; ForeColor: red; Height 16; Left 10; TextAlign: `2 - fmTextAlignCenter`; Top 150; Visible: `False`; Width 270 |
+| `txtName` | TextBox | Height 20; Left 100; Top 10; Width 180 |
+| `txtEmail` | TextBox | Height 20; Left 100; Top 36; Width 180 |
+| `txtPassword` | TextBox | Height 20; Left 100; PasswordChar: `*`; Top 62; Width 180 |
+| `txtConfirmPassword` | TextBox | Height 20; Left 100; PasswordChar: `*`; Top 88; Width 180 |
+| `cboRole` | ComboBox | Height 20; Left 100; Style: `2 - fmStyleDropDownList`; Top 114; Width 180 |
 | `btnSave` | CommandButton | Caption: `Save`; Default: `True`; Height 24; Left 110; Top 180; Width 80 |
 | `btnCancel` | CommandButton | Caption: `Cancel`; Height 24; Left 200; Top 180; Width 80 |
 
@@ -533,10 +540,10 @@ End Sub
 |---|---|---|
 | `lblUserName` | Label | Caption: *(blank, set at runtime)*; Font: Bold; Height 16; Left 10; Top 10; Width 250 |
 | `lblNewPassword` | Label | Caption: `New Password:`; Height 16; Left 10; Top 40; Width 100 |
-| `txtNewPassword` | TextBox | Height 20; Left 115; PasswordChar: `*`; Top 38; Width 150 |
 | `lblConfirmPassword` | Label | Caption: `Confirm Password:`; Height 16; Left 10; Top 66; Width 100 |
-| `txtConfirmPassword` | TextBox | Height 20; Left 115; PasswordChar: `*`; Top 64; Width 150 |
 | `lblError` | Label | Caption: *(blank)*; ForeColor: red; Height 16; Left 10; TextAlign: `2 - fmTextAlignCenter`; Top 96; Visible: `False`; Width 250 |
+| `txtNewPassword` | TextBox | Height 20; Left 115; PasswordChar: `*`; Top 38; Width 150 |
+| `txtConfirmPassword` | TextBox | Height 20; Left 115; PasswordChar: `*`; Top 64; Width 150 |
 | `btnSave` | CommandButton | Caption: `Reset`; Default: `True`; Height 24; Left 90; Top 130; Width 80 |
 | `btnCancel` | CommandButton | Caption: `Cancel`; Height 24; Left 180; Top 130; Width 80 |
 
@@ -597,10 +604,10 @@ detected columns, then asks Replace vs. Merge before the import runs.
 | Control | Type | Properties (alphabetical) |
 |---|---|---|
 | `lblInstructions` | Label | Caption: `Review the detected columns below, then choose how to apply this import.`; Height 32; Left 10; Top 10; Width 400 |
+| `lblProgress` | Label | Caption: *(blank)*; Height 16; Left 10; Top 282; Width 400 |
 | `lstPreview` | ListBox | ColumnCount: `5`; ColumnWidths: `80 pt;80 pt;80 pt;80 pt;80 pt`; Height 180; Left 10; Top 46; Width 400 |
 | `optReplace` | OptionButton | Caption: `Replace all data`; Height 18; Left 10; Top 236; Width 200 |
 | `optMerge` | OptionButton | Caption: `Merge (skip MRNs already present)`; Height 18; Left 10; Top 256; Value: `True`; Width 260 |
-| `lblProgress` | Label | Caption: *(blank)*; Height 16; Left 10; Top 282; Width 400 |
 | `btnImport` | CommandButton | Caption: `Import`; Default: `True`; Height 24; Left 230; Top 306; Width 80 |
 | `btnCancel` | CommandButton | Caption: `Cancel`; Height 24; Left 320; Top 306; Width 80 |
 
