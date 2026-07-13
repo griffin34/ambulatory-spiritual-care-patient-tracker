@@ -382,6 +382,7 @@ def _build_workqueue_sheet(wb):
     _add_button(ws, 'I1', '+ Add Patient', 'modPatients.UI_OpenAddPatient')
     _add_button(ws, 'K1', 'View Patient', 'modPatients.UI_ViewSelectedPatient')
     _add_button(ws, 'M1', 'Export', 'modPatients.UI_ExportWorkQueue', width=70)
+    ws.range('1:1').api.RowHeight = 22  # buttons are 20pt tall -- default row height (~15pt) let them overhang into row 2
 
     ws.range('B2').value = 'Total Active: 0'
 
@@ -429,6 +430,7 @@ def _build_appointments_sheet(wb):
     _add_button(ws, 'F1', '-14 Days', 'modAppointments.UI_Back14Days', width=80)
     _add_button(ws, 'G1', '+ Add Appointment', 'modAppointments.UI_OpenAddAppointment', width=130)
     _add_button(ws, 'I1', 'Export', 'modAppointments.UI_ExportDay', width=70)
+    ws.range('1:1').api.RowHeight = 22  # buttons are 20pt tall -- default row height (~15pt) let them overhang into row 2
 
     ws.range('C2').value = 'Scheduled: 0   Completed: 0   No Show: 0   Cancelled: 0   Rescheduled: 0'
 
@@ -475,6 +477,7 @@ def _build_admin_sheet(wb):
     ws.range('I2').value = 'Referral Sources'
     _add_button(ws, 'J2', 'Deactivate', 'modAdmin.UI_DeactivateSelectedLov', width=80)
     _add_button(ws, 'K2', 'Restore', 'modAdmin.UI_RestoreSelectedLov', width=80)
+    ws.range('2:2').api.RowHeight = 22  # buttons are 20pt tall -- default row height (~15pt) let them overhang into row 3
 
     ws.range('H3').value = 'New Value:'
     ws.range('J3').value = 'Sort:'
