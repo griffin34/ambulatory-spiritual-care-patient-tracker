@@ -34,9 +34,7 @@ Private Sub btnBrowse_Click()
 End Sub
 
 Private Sub btnConfirm_Click()
-    ' TODO(plan6): modPurge.RunPurge txtArchivePath.Text
-    ' (updates _data_settings.last_purge_date on success -- leave it untouched
-    ' on Cancel so the prompt reappears next open, per spec.)
+    modPurge.ArchiveAndPurge modPurge.gPendingStaleIds, txtArchivePath.Text
     Unload Me
 End Sub
 

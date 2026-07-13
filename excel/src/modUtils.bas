@@ -130,3 +130,122 @@ Public Sub SetSetting(key As String, value As String)
     ws.Cells(newRow, 1).Value = key
     ws.Cells(newRow, 2).Value = value
 End Sub
+
+' Returns active _data_lov values for a category, sorted by sort_order ascending.
+Public Function ActiveLovValues(category As String) As Collection
+    Dim result As New Collection
+    Dim ws As Worksheet: Set ws = DataSheet("_data_lov")
+    Dim last As Long: last = LastDataRow(ws)
+    Dim cCategory As Long: cCategory = ColIndex(ws, "category")
+    Dim cValue As Long: cValue = ColIndex(ws, "value")
+    Dim cActive As Long: cActive = ColIndex(ws, "is_active")
+    Dim cSort As Long: cSort = ColIndex(ws, "sort_order")
+
+    Dim values As Collection: Set values = New Collection
+    Dim sorts As Collection: Set sorts = New Collection
+    Dim i As Long
+    For i = 2 To last
+        If ws.Cells(i, cCategory).Value = category And ws.Cells(i, cActive).Value = 1 Then
+            values.Add CStr(ws.Cells(i, cValue).Value)
+            sorts.Add CLng(ws.Cells(i, cSort).Value)
+        End If
+    Next i
+
+    Dim n As Long: n = values.Count
+    If n = 0 Then
+        Set ActiveLovValues = result
+        Exit Function
+    End If
+    Dim order() As Long: ReDim order(1 To n)
+    For i = 1 To n: order(i) = i: Next i
+    Dim j As Long, tmp As Long
+    For i = 1 To n - 1
+        For j = 1 To n - i
+            If sorts(order(j)) > sorts(order(j + 1)) Then
+                tmp = order(j): order(j) = order(j + 1): order(j + 1) = tmp
+            End If
+        Next j
+    Next i
+    For i = 1 To n
+        result.Add values(order(i))
+    Next i
+    Set ActiveLovValues = result
+End Function
+
+' Fills a ComboBox with active _data_lov values for the given category.
+Public Sub PopulateLovCombo(cbo As MSForms.ComboBox, category As String)
+    Dim values As Collection: Set values = ActiveLovValues(category)
+    cbo.Clear
+    Dim v As Variant
+    For Each v In values
+        cbo.AddItem CStr(v)
+    Next v
+End Sub
+
+' Returns the _data_lov row id matching category+value (case-insensitive), or 0.
+Public Function LovIdForValue(category As String, value As String) As Long
+    Dim ws As Worksheet: Set ws = DataSheet("_data_lov")
+    Dim last As Long: last = LastDataRow(ws)
+    Dim cCategory As Long: cCategory = ColIndex(ws, "category")
+    Dim cValue As Long: cValue = ColIndex(ws, "value")
+    Dim i As Long
+    For i = 2 To last
+        If ws.Cells(i, cCategory).Value = category And _
+           LCase(CStr(ws.Cells(i, cValue).Value)) = LCase(value) Then
+            LovIdForValue = ws.Cells(i, 1).Value
+            Exit Function
+        End If
+    Next i
+    LovIdForValue = 0
+End Function
+
+' Returns the _data_lov value string for a given row id, or "" if not found / id<=0.
+Public Function LovValueForId(id As Long) As String
+    If id <= 0 Then Exit Function
+    Dim ws As Worksheet: Set ws = DataSheet("_data_lov")
+    Dim r As Long: r = FindById(ws, id)
+    If r = 0 Then Exit Function
+    LovValueForId = CStr(ws.Cells(r, ColIndex(ws, "value")).Value)
+End Function
+
+' Validates a "YYYY-MM-DD" string, rejecting non-existent calendar dates
+' (e.g. 2026-02-30). An empty string is valid (field is optional).
+Public Function IsValidIsoDate(s As String) As Boolean
+    If Trim(s) = "" Then
+        IsValidIsoDate = True
+        Exit Function
+    End If
+    If Len(s) <> 10 Then Exit Function
+    If Mid(s, 5, 1) <> "-" Or Mid(s, 8, 1) <> "-" Then Exit Function
+    If Not IsNumeric(Left(s, 4)) Then Exit Function
+    If Not IsNumeric(Mid(s, 6, 2)) Then Exit Function
+    If Not IsNumeric(Mid(s, 9, 2)) Then Exit Function
+    Dim y As Long, m As Long, d As Long
+    y = CLng(Left(s, 4)): m = CLng(Mid(s, 6, 2)): d = CLng(Mid(s, 9, 2))
+    Dim dt As Date
+    On Error Resume Next
+    dt = DateSerial(y, m, d)
+    IsValidIsoDate = (Err.Number = 0) And (Format(dt, "yyyy-mm-dd") = s)
+    On Error GoTo 0
+End Function
+
+' Deletes a single worksheet row. Call bottom-to-top when deleting multiple
+' rows in a loop so row indices don't shift under you mid-loop. Safe to use
+' freely on the single-table `_data_*` sheets (nothing else shares them), but
+' would risk the "would move cells in a table" error if the sheet had another
+' ListObject positioned below the deleted row.
+Public Sub DeleteRow(ws As Worksheet, rowIdx As Long)
+    ws.Rows(rowIdx).Delete
+End Sub
+
+' Rounds half-away-from-zero to the given number of decimals. VBA's native Round()
+' uses banker's rounding, which doesn't match JS Math.round() -- use this instead
+' anywhere mirroring Electron business logic that calls Math.round().
+Public Function RoundHalfUp(x As Double, decimals As Long) As Double
+    Dim factor As Double: factor = 10 ^ decimals
+    If x >= 0 Then
+        RoundHalfUp = Int(x * factor + 0.5) / factor
+    Else
+        RoundHalfUp = -Int(-x * factor + 0.5) / factor
+    End If
+End Function

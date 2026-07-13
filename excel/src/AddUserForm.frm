@@ -51,6 +51,7 @@ Private Sub btnSave_Click()
         Next ws
         ThisWorkbook.Sheets("Splash").Visible = xlSheetHidden
         ThisWorkbook.Sheets("WorkQueue").Activate
+        If modAuth.IsAdmin() Then modPurge.RunPurgeCheck
     End If
     Unload Me
 End Sub

@@ -18,10 +18,21 @@ Option Explicit
 Public PatientId As Long   ' 0 = new patient
 
 Private Sub UserForm_Activate()
-    ' TODO(plan3): populate cboReferralSource/cboReligion/cboLanguage from
-    ' modUtils.DataSheet("_data_lov") rows for each category.
+    modUtils.PopulateLovCombo cboReferralSource, "referral_source"
+    modUtils.PopulateLovCombo cboReligion, "religion"
+    modUtils.PopulateLovCombo cboLanguage, "language"
+
     If PatientId > 0 Then
-        ' TODO(plan3): load modPatients.GetPatient(PatientId) into the fields.
+        Dim p As Object: Set p = modPatients.GetPatient(PatientId)
+        txtMrn.Text = p("mrn") & ""
+        txtLastName.Text = p("last_name") & ""
+        txtFirstName.Text = p("first_name") & ""
+        txtMiddleName.Text = p("middle_name") & ""
+        txtPhone.Text = p("phone") & ""
+        txtReferralDate.Text = p("date_of_referral") & ""
+        cboReferralSource.Value = p("referral_source") & ""
+        cboReligion.Value = p("religion") & ""
+        cboLanguage.Value = p("language") & ""
         Me.Caption = "Edit Patient"
     Else
         Me.Caption = "Add Patient"
@@ -33,8 +44,18 @@ Private Sub btnSave_Click()
         ShowError "First and last name are required."
         Exit Sub
     End If
-    ' TODO(plan3): validate txtReferralDate as YYYY-MM-DD.
-    ' TODO(plan3): modPatients.Save PatientId, txtMrn.Text, txtLastName.Text, ...
+    If Not modUtils.IsValidIsoDate(Trim(txtReferralDate.Text)) Then
+        ShowError "Referral date must be YYYY-MM-DD."
+        Exit Sub
+    End If
+
+    Dim referralSourceId As Long: referralSourceId = modUtils.LovIdForValue("referral_source", cboReferralSource.Value)
+    Dim religionId As Long: religionId = modUtils.LovIdForValue("religion", cboReligion.Value)
+    Dim languageId As Long: languageId = modUtils.LovIdForValue("language", cboLanguage.Value)
+
+    modPatients.Save PatientId, Trim(txtMrn.Text), Trim(txtLastName.Text), Trim(txtFirstName.Text), _
+        Trim(txtMiddleName.Text), Trim(txtPhone.Text), Trim(txtReferralDate.Text), _
+        referralSourceId, religionId, languageId
     Unload Me
 End Sub
 

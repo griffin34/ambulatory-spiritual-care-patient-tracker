@@ -18,7 +18,7 @@ Public UserId As Long   ' set by caller before .Show
 Option Explicit
 
 Private Sub UserForm_Activate()
-    ' TODO(plan6): lblUserName.Caption = modAdmin.GetUserName(UserId)
+    lblUserName.Caption = modAdmin.GetUserName(UserId)
 End Sub
 
 Private Sub btnSave_Click()
@@ -26,7 +26,7 @@ Private Sub btnSave_Click()
         ShowError "Passwords must match and cannot be blank."
         Exit Sub
     End If
-    ' TODO(plan6): modAdmin.ResetPassword UserId, txtNewPassword.Text
+    modAdmin.ResetPassword UserId, txtNewPassword.Text
     Unload Me
 End Sub
 
