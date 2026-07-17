@@ -177,6 +177,7 @@ Public Sub ArchiveAndPurge(staleIds As Collection, archivePath As String)
 
     modUtils.SetSetting "last_purge_date", modUtils.DateISO(Date)
     RefreshPurgeConfigDisplay
+    modUtils.AutoSave
 End Sub
 
 Private Sub CopyHeaderRow(srcWs As Worksheet, destWs As Worksheet)

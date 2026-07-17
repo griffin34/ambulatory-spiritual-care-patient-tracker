@@ -143,6 +143,11 @@ Public Sub RunImport(filePath As String, mode As String)
     Dim last As Long: last = srcWs.Cells(srcWs.Rows.Count, 1).End(xlUp).Row
 
     Application.EnableEvents = False
+    ' Suppress the per-row AutoSave that modPatients.Save/ChangeStatus/
+    ' SaveNotes and modAppointments.Save would otherwise each trigger --
+    ' saving the workbook on every imported row would be very slow for a
+    ' large import. One AutoSave at the end covers the whole batch.
+    modUtils.gSuppressAutoSave = True
 
     If mode = "replace" Then
         WipeDataRows modUtils.DataSheet("_data_patients")
@@ -210,6 +215,8 @@ ContinueImportLoop:
 
     srcWb.Close SaveChanges:=False
     Application.EnableEvents = True
+    modUtils.gSuppressAutoSave = False
+    modUtils.AutoSave
 End Sub
 
 Private Sub WipeDataRows(ws As Worksheet)

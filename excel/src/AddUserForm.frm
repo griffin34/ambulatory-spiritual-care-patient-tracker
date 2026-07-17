@@ -1,7 +1,7 @@
 VERSION 5.00
 Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} AddUserForm 
    Caption         =   "Add User"
-   ClientHeight    =   5040
+   ClientHeight    =   5556
    ClientLeft      =   108
    ClientTop       =   456
    ClientWidth     =   5784
@@ -20,6 +20,7 @@ Option Explicit
 Private Sub UserForm_Activate()
     cboRole.AddItem "admin"
     cboRole.AddItem "coordinator"
+    lblEmail.Caption = "Username:"
     If FirstRunMode Then
         Me.Caption = "Create Admin Account"
         cboRole.value = "admin"
@@ -33,14 +34,14 @@ End Sub
 
 Private Sub btnSave_Click()
     If Trim(txtName.Text) = "" Or Trim(txtEmail.Text) = "" Then
-        ShowError "Name and email are required."
+        ShowError "Name and username are required."
         Exit Sub
     End If
     If txtPassword.Text = "" Or txtPassword.Text <> txtConfirmPassword.Text Then
         ShowError "Passwords must match and cannot be blank."
         Exit Sub
     End If
-    modAdmin.CreateUser Trim(txtName.Text), Trim(txtEmail.Text), txtPassword.Text, cboRole.value
+    modAdmin.CreateUser Trim(txtName.Text), Trim(txtEmail.Text), Trim(txtEmailReal.Text), txtPassword.Text, cboRole.value
     If FirstRunMode Then
         modAuth.ValidateLogin Trim(txtEmail.Text), txtPassword.Text
         Dim ws As Worksheet

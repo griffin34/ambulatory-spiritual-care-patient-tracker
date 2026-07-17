@@ -25,7 +25,7 @@ ANCHOR_SHEET = 'Splash'
 
 SHEET_HEADERS = {
     '_data_users': [
-        'id', 'name', 'email', 'password_hash', 'role', 'is_active', 'created_at',
+        'id', 'name', 'username', 'email', 'password_hash', 'role', 'is_active', 'created_at',
     ],
     '_data_patients': [
         'id', 'mrn', 'last_name', 'first_name', 'middle_name', 'phone',
@@ -345,12 +345,55 @@ def _hex_to_bgr(hex_color):
 
 
 def _add_button(ws, cell, caption, macro, width=110, height=20):
-    """Add a Forms-control button anchored at `cell`'s top-left corner, wired to `macro`."""
+    """Add a Forms-control button anchored at `cell`'s top-left corner, wired to `macro`.
+
+    Placement is forced to xlFreeFloating (3) -- Buttons().Add() defaults to
+    xlMoveAndSize (1), which RESIZES the button whenever the underlying row/
+    column is resized. That default is what caused the row-height fix to grow
+    the button right along with the row instead of just giving it more room.
+    """
     anchor = ws.range(cell).api
     btn = ws.api.Buttons().Add(anchor.Left, anchor.Top, width, height)
     btn.Caption = caption
     btn.OnAction = macro
+    btn.Placement = 3  # xlFreeFloating -- fixed size/position, ignores row/column resizes
     return btn
+
+
+def _add_pick_date_button(ws, cell, macro, width=20):
+    """Adds a small '...' date-picker button overlapping the right edge of a
+    date input cell, wired to `macro` (a modReports.UI_Pick* Sub that shows
+    CalendarPickerForm and writes the result back into this same cell).
+
+    Overlapping the cell's own right edge -- rather than a neighboring column
+    -- avoids restructuring the Reports sheet's already tightly-packed
+    per-section column layout (each section's From/To/Run/Export controls
+    already fill A:F with no free column to anchor a new button on).
+    """
+    anchor = ws.range(cell).api
+    btn = ws.api.Buttons().Add(anchor.Left + anchor.Width - width, anchor.Top, width, anchor.Height)
+    btn.Caption = '...'
+    btn.OnAction = macro
+    btn.Placement = 3  # xlFreeFloating
+    return btn
+
+
+def _protect_sheet(ws, unlocked_ranges=None):
+    """Lock the whole sheet except explicitly-unlocked input cells, then protect
+    it so a stray click-and-type can't corrupt hidden ID columns, table bodies,
+    or other structural cells. Call this LAST in each sheet-build function --
+    after every table/button/validation is already in place -- since sheet
+    protection can interfere with further build-time COM structural changes.
+
+    VBA's own writes (RefreshWorkQueue, etc.) are unaffected at build time, but
+    the UserInterfaceOnly flag that allows that does NOT persist across a save/
+    reopen -- ThisWorkbook.Workbook_Open re-applies it every session.
+    """
+    if unlocked_ranges:
+        for addr in unlocked_ranges:
+            ws.range(addr).api.Locked = False
+    ws.api.Protect(DrawingObjects=True, Contents=True, Scenarios=True,
+                    AllowFiltering=True, AllowSorting=True)
 
 
 def _build_workqueue_sheet(wb):
@@ -365,23 +408,38 @@ def _build_workqueue_sheet(wb):
     """
     ws = wb.sheets['WorkQueue']
 
-    ws.range('A1').value = 'Status:'
-    ws.range('C1').value = 'Referral Source:'
-    ws.range('E1').value = 'Search:'
+    # Column D also backs the table's short 'MRN' header below, so it never
+    # gets auto-widened the way E/F/G do (their table headers -- 'Referral
+    # Date'/'Referral Source'/'Language' -- are long enough to pull it in).
+    # Without this, 'Referral Source:' truncates to 'Referral Sc' because E1
+    # (the dropdown) is non-blank and blocks overflow.
+    ws.range('D:D').api.ColumnWidth = 17  # ~101pt, fits 'Referral Source:' (16 chars)
+
+    # Filter row is shifted one column right of the table's natural start
+    # (B.. instead of A..) because tblWorkQueue's ID column below is A, and
+    # EntireColumn.Hidden hides ALL rows in that column -- a label placed
+    # directly in A (as this row originally was) silently disappears along
+    # with the ID column. Column A stays completely empty/hidden here so
+    # nothing sits on it; since it's 0-width, B visually sits flush against
+    # the sheet's left edge exactly as if it were still the first column.
+    ws.range('B1').value = 'Status:'
+    ws.range('D1').value = 'Referral Source:'
+    ws.range('F1').value = 'Search:'
 
     status_list = 'All,' + ','.join(STATUS_COLORS.keys())
-    ws.range('B1').api.Validation.Add(3, 1, Formula1=status_list)  # xlValidateList
-    ws.range('B1').value = 'All'
+    ws.range('C1').api.Validation.Add(3, 1, Formula1=status_list)  # xlValidateList
+    ws.range('C1').value = 'All'
 
-    ws.range('D1').api.Validation.Add(3, 1, Formula1='=$P$2:$P$50')
-    ws.range('D1').value = 'All'
+    ws.range('E1').api.Validation.Add(3, 1, Formula1='=$P$2:$P$50')
+    ws.range('E1').value = 'All'
 
-    ws.range('F1').value = ''
+    ws.range('G1').value = ''
 
-    _add_button(ws, 'G1', 'Search', 'modPatients.RefreshWorkQueue')
-    _add_button(ws, 'I1', '+ Add Patient', 'modPatients.UI_OpenAddPatient')
-    _add_button(ws, 'K1', 'View Patient', 'modPatients.UI_ViewSelectedPatient')
-    _add_button(ws, 'M1', 'Export', 'modPatients.UI_ExportWorkQueue', width=70)
+    _add_button(ws, 'H1', 'Search', 'modPatients.RefreshWorkQueue')
+    _add_button(ws, 'J1', '+ Add Patient', 'modPatients.UI_OpenAddPatient')
+    _add_button(ws, 'L1', 'View Patient', 'modPatients.UI_ViewSelectedPatient')
+    _add_button(ws, 'N1', 'Export', 'modPatients.UI_ExportWorkQueue', width=70)
+    _add_button(ws, 'O1', 'Logout', 'modAuth.UI_Logout', width=70)
     ws.range('1:1').api.RowHeight = 22  # buttons are 20pt tall -- default row height (~15pt) let them overhang into row 2
 
     ws.range('B2').value = 'Total Active: 0'
@@ -406,6 +464,8 @@ def _build_workqueue_sheet(wb):
     ws.range('P1').value = 'Referral Source Helper (do not edit)'
     ws.range('P:P').api.EntireColumn.Hidden = True
 
+    _protect_sheet(ws, unlocked_ranges=['C1', 'E1', 'G1'])
+
 
 def _build_appointments_sheet(wb):
     """Build the Appointments sheet: date nav row, status summary, appointment table.
@@ -416,6 +476,15 @@ def _build_appointments_sheet(wb):
     on every load/click; row 2 the status summary; row 4 the table header.
     """
     ws = wb.sheets['Appointments']
+
+    # Default column width (~48pt) is narrower than these nav buttons (70-130pt)
+    # -- widen before adding them so each button's column boundary clears its
+    # full width, same fix as WorkQueue/Admin's button rows.
+    ws.range('C:C').api.ColumnWidth = 16  # ~95pt, fits '< Prev Day' (90pt)
+    ws.range('D:D').api.ColumnWidth = 16  # ~95pt, fits 'Next Day >' (90pt)
+    ws.range('E:E').api.ColumnWidth = 13  # ~77pt, fits 'Today' (70pt)
+    ws.range('F:F').api.ColumnWidth = 14  # ~83pt, fits '-14 Days' (80pt)
+    ws.range('G:G').api.ColumnWidth = 23  # ~136pt, fits '+ Add Appointment' (130pt)
 
     # Text format before writing any values, so ISO date/time strings never
     # get silently re-parsed into locale-dependent Date/Time serials.
@@ -440,20 +509,49 @@ def _build_appointments_sheet(wb):
     tbl.Name = 'tblAppointments'
     tbl.ListColumns('ID').Range.EntireColumn.Hidden = True
 
+    _protect_sheet(ws)  # nothing needs direct user entry -- the date is nav-button-driven only
+
 
 def _build_admin_sheet(wb):
     """Build the Admin sheet: User Management (left) and List of Values (right).
 
-    Users: A=ID (hidden), B=Name, C=Email, D=Role, E=Active. Buttons operate on
-    whichever row is currently selected (ActiveCell), same pattern as WorkQueue.
+    Users: A=ID (hidden), B=Name, C=Username, D=Email, E=Role, F=Active. Buttons
+    operate on whichever row is currently selected (ActiveCell), same pattern
+    as WorkQueue.
 
     LoV: H=ID (hidden), I=Value, J=Sort Order, K=Active, L=Chaplain -- the last
     column is only meaningful when Category=Consultants (a structurally
     different sheet: no sort_order, has is_chaplain); it's simply blank/ignored
     for the other 4 categories rather than dynamically hiding a column, to keep
-    the table structure uniform.
+    the table structure uniform. The table itself is read-only display --
+    Add/Edit open AddEditLovForm (which shows the Sort Order field or the
+    Chaplain checkbox, never both) rather than editing cells directly.
     """
     ws = wb.sheets['Admin']
+
+    # Default column width (~48pt) is narrower than several action buttons
+    # (80-90pt) -- packing consecutive buttons into unwidened columns makes
+    # each button visually overlap/obscure the next. Widen the columns that
+    # carry a button before adding it so its column boundary clears the
+    # button's full width (matches the RowHeight fix's reasoning, but for the
+    # horizontal axis).
+    ws.range('B:B').api.ColumnWidth = 17  # ~100pt, fits '+ Add User' (90pt)
+    ws.range('C:C').api.ColumnWidth = 15  # ~89pt, fits 'Reset PW' (80pt)
+    ws.range('D:D').api.ColumnWidth = 15  # ~89pt, fits 'Deactivate' (80pt)
+    # E/F are the tblUsers Role/Active data columns -- not a button column, but
+    # left at the 48pt default 'coordinator' (11 chars) and 'Inactive'
+    # (8 chars) both clip.
+    ws.range('E:E').api.ColumnWidth = 15  # ~89pt, fits 'coordinator'
+    ws.range('F:F').api.ColumnWidth = 12  # ~71pt, fits 'Inactive'
+    # I is the category dropdown's own value cell -- longest option is
+    # 'Appointment Types' (18 chars). Left at the 48pt default, that text
+    # overflowed into J (blank cell, no value) and got visually covered by
+    # the LoV row's Deactivate button sitting there, since the button's
+    # opaque shape masks whatever the cell overflow renders underneath it.
+    ws.range('I:I').api.ColumnWidth = 20  # ~118pt, fits 'Appointment Types' (18 chars)
+    ws.range('J:J').api.ColumnWidth = 15  # ~89pt, fits 'Deactivate' (80pt)
+    ws.range('K:K').api.ColumnWidth = 15  # ~89pt, fits 'Restore' (80pt) -- and clears room for 'Edit' in L
+    ws.range('L:L').api.ColumnWidth = 12  # ~71pt, fits 'Edit' (60pt)
 
     ws.range('B1').value = 'User Management'
     ws.range('B1').font.bold = True
@@ -462,27 +560,40 @@ def _build_admin_sheet(wb):
     _add_button(ws, 'D2', 'Deactivate', 'modAdmin.UI_DeactivateSelectedUser', width=80)
     _add_button(ws, 'E2', 'Activate', 'modAdmin.UI_ActivateSelectedUser', width=80)
 
-    user_headers = ['ID', 'Name', 'Email', 'Role', 'Active']
+    user_headers = ['ID', 'Name', 'Username', 'Email', 'Role', 'Active']
     ws.range('A4').value = user_headers
-    users_tbl = ws.api.ListObjects.Add(1, ws.range('A4:E4').api, None, 1)  # xlSrcRange, xlYes
+    users_tbl = ws.api.ListObjects.Add(1, ws.range('A4:F4').api, None, 1)  # xlSrcRange, xlYes
     users_tbl.Name = 'tblUsers'
     users_tbl.ListColumns('ID').Range.EntireColumn.Hidden = True
 
-    ws.range('H1').value = 'List of Values'
-    ws.range('H1').font.bold = True
+    # NOTE: these 3 labels live in column G, not H -- tblLov's ID column
+    # (below) is H, and EntireColumn.Hidden hides ALL rows in that column,
+    # not just the table body. Putting them in H made 'List of Values' /
+    # 'Category:' / 'New Value:' silently disappear along with the ID column,
+    # orphaning the '+ Add' button with no visible label pointing at it.
+    # Column G has no other content anywhere on this sheet, and since H is
+    # hidden (0 width) G sits visually flush against I, so this reads exactly
+    # as if the label were still in H.
+    ws.range('G1').value = 'List of Values'
+    ws.range('G1').font.bold = True
 
-    ws.range('H2').value = 'Category:'
+    ws.range('G2').value = 'Category:'
     category_list = 'Referral Sources,Religions,Languages,Consultants,Appointment Types'
     ws.range('I2').api.Validation.Add(3, 1, Formula1=category_list)  # xlValidateList
     ws.range('I2').value = 'Referral Sources'
     _add_button(ws, 'J2', 'Deactivate', 'modAdmin.UI_DeactivateSelectedLov', width=80)
     _add_button(ws, 'K2', 'Restore', 'modAdmin.UI_RestoreSelectedLov', width=80)
+    # Add/Edit open a popup form instead of typing directly into sheet cells
+    # (the direct-cell-entry flow this replaced made it too easy to fat-finger
+    # a wrong column, especially Sort Order, and offered no per-category field
+    # set -- e.g. Chaplain Y/N only makes sense for Consultants). Kept in the
+    # same row as Deactivate/Restore -- an earlier row-3 placement under the
+    # category dropdown looked attached to the Users table on one side and
+    # overlapped the dropdown on the other, from having near-zero clearance
+    # on both axes.
+    _add_button(ws, 'L2', 'Edit', 'modAdmin.UI_OpenEditLov', width=60)
+    _add_button(ws, 'M2', '+ Add', 'modAdmin.UI_OpenAddLov', width=60)
     ws.range('2:2').api.RowHeight = 22  # buttons are 20pt tall -- default row height (~15pt) let them overhang into row 3
-
-    ws.range('H3').value = 'New Value:'
-    ws.range('J3').value = 'Sort:'
-    ws.range('L3').value = 'Chaplain (Y/N):'
-    _add_button(ws, 'N3', '+ Add', 'modAdmin.UI_AddLovValue', width=60)
 
     lov_headers = ['ID', 'Value', 'Sort Order', 'Active', 'Chaplain']
     ws.range('H5').value = lov_headers
@@ -509,6 +620,11 @@ def _build_admin_sheet(wb):
     _add_button(ws, 'B30', 'Export for Import', 'modExport.UI_ExportForImport', width=130)
     _add_button(ws, 'D30', 'Import from Electron Export', 'modExport.UI_ImportFromElectron', width=170)
 
+    # tblLov's Value/Sort Order/Chaplain columns are deliberately left locked
+    # (read-only) -- editing now goes through AddEditLovForm (Edit button),
+    # not direct cell entry.
+    _protect_sheet(ws, unlocked_ranges=['I2', 'C26', 'E26'])
+
 
 def _add_chart(ws, anchor_cell, source_range_addr, name, width=320, height=190):
     """Add a native clustered-column chart anchored at `anchor_cell`, sourced
@@ -525,11 +641,16 @@ def _add_chart(ws, anchor_cell, source_range_addr, name, width=320, height=190):
 
 
 def _build_reports_sheet(wb):
-    """Build the Reports sheet: 4 stacked report sections (Referrals by
-    Source, First Appointments, Patients Dropped, SDAT Improvement), each with
-    a date range, Run/Export buttons, and a results area. The first 3 also get
-    a native Excel chart per the design spec; SDAT Improvement has none --
-    just a table plus a recomputed overall-total row.
+    """Build the Reports sheet: one shared report selector + date range + Run
+    button (row 1, columns G-P -- mirrors the Electron app's reports
+    redesign), above 4 stacked report sections (Referrals by Source, First
+    Appointments, Patients Dropped, SDAT Improvement), each with just its own
+    results area and Export button. Running "All Reports" populates all 4;
+    running one specific report populates that section and clears the other
+    3 (mirrors the Electron page only ever showing cards for the report(s)
+    actually run). The first 3 sections also get a native Excel chart per the
+    design spec; SDAT Improvement has none -- just a table plus a recomputed
+    overall-total row.
 
     Result areas are plain formatted ranges (bold header + a fixed row buffer
     cleared/rewritten on every Run), NOT Excel Tables/ListObjects -- 4 real
@@ -548,14 +669,60 @@ def _build_reports_sheet(wb):
     """
     ws = wb.sheets['Reports']
 
+    # Columns A-F are shared by all 4 stacked sections below: as the From/To
+    # date row (B/D hold 10-char ISO dates, E/F host the Run/Export buttons)
+    # AND as the SDAT Improvement results table's header row (A:F -- 'Begin
+    # Score'/'Begin Date'/'End Score'/'End Date'/'% Improvement' are all wider
+    # than the 48pt default). Widen once, before any section writes content,
+    # so both the date inputs stop getting clipped/covered by the Run button
+    # and the SDAT headers stop truncating.
+    # 22 units (~130pt) -- room for real patient/source names AND fits the
+    # 'Overall Improvement:' label (row 79) on its own; B79 always ends up
+    # with real content once a report runs ('No results found.' or a percent),
+    # so this can't rely on overflow into a blank neighbor the way a
+    # once-off placeholder could.
+    ws.range('A:A').api.ColumnWidth = 22
+    ws.range('B:B').api.ColumnWidth = 16  # ~95pt, fits 'First Appt Date' (15 chars)
+    ws.range('C:C').api.ColumnWidth = 12  # ~71pt, fits 'Begin Date'/'Consultant' + a 10-char date
+    ws.range('D:D').api.ColumnWidth = 12  # ~71pt, fits 'End Score' + a 10-char date
+    ws.range('E:E').api.ColumnWidth = 10  # ~59pt, fits 'End Date'
+    ws.range('F:F').api.ColumnWidth = 14  # ~83pt, fits '% Improvement' + Export button (70pt)
+
+    # J:K hold First Appointments/Patients Dropped's hidden week-label/count
+    # helper range (written further down). Hidden here, BEFORE any button to
+    # its right gets placed -- Buttons().Add() bakes in an absolute pixel
+    # position computed from the column widths *at that moment*, so hiding
+    # J:K afterward (making them 0-width) would shift L onward left without
+    # taking already-placed buttons with them, leaving every button in the
+    # shared controls row visually adrift from its label/cell.
+    ws.range('J:K').api.EntireColumn.Hidden = True
+
+    # -- Shared report controls (row 1, columns G onward -- free at build time
+    # since charts anchor at row 4+ and no section places anything in row 1
+    # past column A). Mirrors the Electron app's reports redesign: one report
+    # selector (defaults to "All Reports"), one shared date range, one Run
+    # button -- replacing what used to be 4 independent per-section date
+    # ranges + Run buttons. Each section below keeps only its own Export
+    # button, since export still acts on one already-computed report at a time.
+    # Columns I/J/K are deliberately skipped -- J:K are the hidden columns above.
+    ws.range('G1').value = 'Report:'
+    ws.range('H:H').api.ColumnWidth = 20  # ~118pt, fits 'Referrals by Source' (20 chars)
+    report_list = 'All Reports,Referrals by Source,First Appointments,Patients Dropped,SDAT Improvement'
+    ws.range('H1').api.Validation.Add(3, 1, Formula1=report_list)  # xlValidateList
+    ws.range('H1').value = 'All Reports'
+    ws.range('L1').value = 'From:'
+    ws.range('M:M').api.ColumnWidth = 16
+    ws.range('M1').api.NumberFormat = '@'
+    _add_pick_date_button(ws, 'M1', 'modReports.UI_PickSharedFromDate')
+    ws.range('N1').value = 'To:'
+    ws.range('O:O').api.ColumnWidth = 16
+    ws.range('O1').api.NumberFormat = '@'
+    _add_pick_date_button(ws, 'O1', 'modReports.UI_PickSharedToDate')
+    _add_button(ws, 'P1', 'Run', 'modReports.UI_RunSelectedReport', width=60)
+
     # -- Referrals by Source -------------------------------------------------
     ws.range('A1').value = 'Referrals by Source'
     ws.range('A1').font.bold = True
-    ws.range('A2').value = 'From:'
-    ws.range('C2').value = 'To:'
-    ws.range('B2').api.NumberFormat = '@'
-    ws.range('D2').api.NumberFormat = '@'
-    _add_button(ws, 'E2', 'Run', 'modReports.UI_RunReferralsBySource', width=60)
     _add_button(ws, 'F2', 'Export', 'modReports.UI_ExportReferralsBySource', width=70)
     ws.range('A4').value = ['Source', 'Count', 'Percent']
     ws.range('A4:C4').font.bold = True
@@ -565,29 +732,18 @@ def _build_reports_sheet(wb):
     # -- First Appointments ---------------------------------------------------
     ws.range('A17').value = 'First Appointments'
     ws.range('A17').font.bold = True
-    ws.range('A18').value = 'From:'
-    ws.range('C18').value = 'To:'
-    ws.range('B18').api.NumberFormat = '@'
-    ws.range('D18').api.NumberFormat = '@'
-    _add_button(ws, 'E18', 'Run', 'modReports.UI_RunFirstAppointments', width=60)
     _add_button(ws, 'F18', 'Export', 'modReports.UI_ExportFirstAppointments', width=70)
     ws.range('A20').value = ['Patient', 'First Appt Date', 'Consultant']
     ws.range('A20:C20').font.bold = True
     ws.range('B:B').api.NumberFormat = '@'
     ws.range('J20').value = ['Week', 'Count']
     ws.range('J:J').api.NumberFormat = '@'
-    ws.range('J:K').api.EntireColumn.Hidden = True
     ws.range('E21').value = 'Run the report to see results.'
     _add_chart(ws, 'H20', 'J20:K20', 'chtFirstAppointments')
 
     # -- Patients Dropped -------------------------------------------------
     ws.range('A37').value = 'Patients Dropped'
     ws.range('A37').font.bold = True
-    ws.range('A38').value = 'From:'
-    ws.range('C38').value = 'To:'
-    ws.range('B38').api.NumberFormat = '@'
-    ws.range('D38').api.NumberFormat = '@'
-    _add_button(ws, 'E38', 'Run', 'modReports.UI_RunPatientsDropped', width=60)
     _add_button(ws, 'F38', 'Export', 'modReports.UI_ExportPatientsDropped', width=70)
     ws.range('A40').value = ['Patient', 'Dropped Date', 'Changed By']
     ws.range('A40:C40').font.bold = True
@@ -598,11 +754,6 @@ def _build_reports_sheet(wb):
     # -- SDAT Improvement (no chart per spec) --------------------------------
     ws.range('A57').value = 'SDAT Improvement'
     ws.range('A57').font.bold = True
-    ws.range('A58').value = 'From:'
-    ws.range('C58').value = 'To:'
-    ws.range('B58').api.NumberFormat = '@'
-    ws.range('D58').api.NumberFormat = '@'
-    _add_button(ws, 'E58', 'Run', 'modReports.UI_RunSdatImprovement', width=60)
     _add_button(ws, 'F58', 'Export', 'modReports.UI_ExportSdatImprovement', width=70)
     ws.range('A60').value = ['Patient', 'Begin Score', 'Begin Date', 'End Score', 'End Date', '% Improvement']
     ws.range('A60:F60').font.bold = True
@@ -610,6 +761,8 @@ def _build_reports_sheet(wb):
     ws.range('E:E').api.NumberFormat = '@'
     ws.range('A79').value = 'Overall Improvement:'
     ws.range('B79').value = ''
+
+    _protect_sheet(ws, unlocked_ranges=['H1', 'M1', 'O1'])
 
 
 def _save_workbook(wb, output_path):

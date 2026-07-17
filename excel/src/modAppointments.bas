@@ -225,6 +225,7 @@ Public Sub Save(appointmentId As Long, patientId As Long, apptDate As String, ap
     ws.Cells(r, modUtils.ColIndex(ws, "is_last_appointment")).Value = IIf(isLast, 1, 0)
     ws.Cells(r, modUtils.ColIndex(ws, "status")).Value = status
     ws.Cells(r, modUtils.ColIndex(ws, "notes")).Value = notes
+    modUtils.AutoSave
 End Sub
 
 ' ── Appointments sheet UI entry points ─────────────────────────────────────
@@ -292,6 +293,7 @@ Public Sub RefreshAppointments()
     Dim results As Collection: Set results = ForDay(dayIso)
 
     Dim tbl As ListObject: Set tbl = ws.ListObjects("tblAppointments")
+    modUtils.UnprotectForRefresh ws
     If Not tbl.DataBodyRange Is Nothing Then
         tbl.DataBodyRange.Delete
     End If
@@ -312,6 +314,7 @@ Public Sub RefreshAppointments()
             r = r + 1
         Next d
     End If
+    modUtils.ReprotectAfterRefresh ws
 
     Dim counts As Object: Set counts = CountsByStatusForDay(dayIso)
     ws.Range("C2").Value = "Scheduled: " & counts("scheduled") & _

@@ -300,17 +300,16 @@ Private Sub WriteWeekHelper(ws As Worksheet, topLeftCell As String, weekRows As 
 End Sub
 
 ' ── Reports sheet UI ────────────────────────────────────────────────────────
+' One shared range for all 4 reports now (was 4 independent per-section
+' ranges) -- mirrors the Electron app's reports redesign. Default matches
+' Electron's defaultRange(): the current calendar month, start to end (NOT
+' "start of month to today" as this used to be).
 Public Sub SetDefaultDateRangeIfBlank()
     Dim ws As Worksheet: Set ws = modUtils.DataSheet("Reports")
     Dim firstOfMonth As String: firstOfMonth = Format(DateSerial(Year(Date), Month(Date), 1), "yyyy-mm-dd")
-    Dim today As String: today = modUtils.DateISO(Date)
-    Dim fromCells As Variant: fromCells = Array("B2", "B18", "B38", "B58")
-    Dim toCells As Variant: toCells = Array("D2", "D18", "D38", "D58")
-    Dim i As Long
-    For i = 0 To 3
-        If Trim(ws.Range(CStr(fromCells(i))).Value & "") = "" Then ws.Range(CStr(fromCells(i))).Value = firstOfMonth
-        If Trim(ws.Range(CStr(toCells(i))).Value & "") = "" Then ws.Range(CStr(toCells(i))).Value = today
-    Next i
+    Dim lastOfMonth As String: lastOfMonth = Format(DateSerial(Year(Date), Month(Date) + 1, 0), "yyyy-mm-dd")
+    If Trim(ws.Range("M1").Value & "") = "" Then ws.Range("M1").Value = firstOfMonth
+    If Trim(ws.Range("O1").Value & "") = "" Then ws.Range("O1").Value = lastOfMonth
 End Sub
 
 ' Plain-range table write (NOT a ListObject -- see _build_reports_sheet's
@@ -346,14 +345,14 @@ End Function
 
 Public Sub UI_RunReferralsBySource()
     Dim ws As Worksheet: Set ws = modUtils.DataSheet("Reports")
-    Dim rows As Collection: Set rows = ReferralsBySource(CStr(ws.Range("B2").Value), CStr(ws.Range("D2").Value))
+    Dim rows As Collection: Set rows = ReferralsBySource(CStr(ws.Range("M1").Value), CStr(ws.Range("O1").Value))
     Dim fields(2) As String: fields(0) = "source": fields(1) = "count": fields(2) = "percent"
     WriteTableRows ws, "A4", 3, rows, fields
 
     Dim co As ChartObject: Set co = ws.ChartObjects("chtReferralsBySource")
     If rows.Count = 0 Then
         co.Visible = False
-        ws.Range("E5").Value = "No results found."
+        ws.Range("E5").Value = "No results found for this date range."
     Else
         ws.Range("E5").Value = ""
         co.Chart.SetSourceData ws.Range("A4:C" & (4 + rows.Count))
@@ -363,7 +362,7 @@ End Sub
 
 Public Sub UI_RunFirstAppointments()
     Dim ws As Worksheet: Set ws = modUtils.DataSheet("Reports")
-    Dim rows As Collection: Set rows = FirstAppointments(CStr(ws.Range("B18").Value), CStr(ws.Range("D18").Value))
+    Dim rows As Collection: Set rows = FirstAppointments(CStr(ws.Range("M1").Value), CStr(ws.Range("O1").Value))
     Dim fields(2) As String: fields(0) = "patient_name": fields(1) = "first_appt_date": fields(2) = "consultant_name"
     WriteTableRows ws, "A20", 3, rows, fields
 
@@ -373,7 +372,7 @@ Public Sub UI_RunFirstAppointments()
     Dim co As ChartObject: Set co = ws.ChartObjects("chtFirstAppointments")
     If rows.Count = 0 Then
         co.Visible = False
-        ws.Range("E21").Value = "No results found."
+        ws.Range("E21").Value = "No results found for this date range."
     Else
         ws.Range("E21").Value = ""
         co.Chart.SetSourceData ws.Range("J20:K" & (20 + weekRows.Count))
@@ -383,7 +382,7 @@ End Sub
 
 Public Sub UI_RunPatientsDropped()
     Dim ws As Worksheet: Set ws = modUtils.DataSheet("Reports")
-    Dim rows As Collection: Set rows = PatientsDropped(CStr(ws.Range("B38").Value), CStr(ws.Range("D38").Value))
+    Dim rows As Collection: Set rows = PatientsDropped(CStr(ws.Range("M1").Value), CStr(ws.Range("O1").Value))
     Dim fields(2) As String: fields(0) = "patient_name": fields(1) = "dropped_date": fields(2) = "changed_by_name"
     WriteTableRows ws, "A40", 3, rows, fields
 
@@ -393,7 +392,7 @@ Public Sub UI_RunPatientsDropped()
     Dim co As ChartObject: Set co = ws.ChartObjects("chtPatientsDropped")
     If rows.Count = 0 Then
         co.Visible = False
-        ws.Range("E41").Value = "No results found."
+        ws.Range("E41").Value = "No results found for this date range."
     Else
         ws.Range("E41").Value = ""
         co.Chart.SetSourceData ws.Range("J40:K" & (40 + weekRows.Count))
@@ -403,17 +402,85 @@ End Sub
 
 Public Sub UI_RunSdatImprovement()
     Dim ws As Worksheet: Set ws = modUtils.DataSheet("Reports")
-    Dim rows As Collection: Set rows = SdatImprovement(CStr(ws.Range("B58").Value), CStr(ws.Range("D58").Value))
+    Dim rows As Collection: Set rows = SdatImprovement(CStr(ws.Range("M1").Value), CStr(ws.Range("O1").Value))
     Dim fields(5) As String
     fields(0) = "patient_name": fields(1) = "begin_score": fields(2) = "begin_date"
     fields(3) = "end_score": fields(4) = "end_date": fields(5) = "pct_improvement"
     WriteTableRows ws, "A60", 6, rows, fields
 
     If rows.Count = 0 Then
-        ws.Range("B79").Value = "No results found."
+        ws.Range("B79").Value = "No results found for this date range."
     Else
         ws.Range("B79").Value = Format(SdatOverallImprovement(rows), "0.0") & "%"
     End If
+End Sub
+
+' Matches the Electron app's reports redesign: one selector, one shared date
+' range, one Run button. Running a single report clears the other three
+' sections' results (mirrors the Electron page only ever showing cards for
+' the report(s) actually run) instead of leaving stale data on screen.
+Public Sub UI_RunSelectedReport()
+    Dim ws As Worksheet: Set ws = modUtils.DataSheet("Reports")
+    Dim selected As String: selected = CStr(ws.Range("H1").Value)
+
+    If selected = "All Reports" Or selected = "Referrals by Source" Then
+        UI_RunReferralsBySource
+    Else
+        ClearReferralsBySource
+    End If
+
+    If selected = "All Reports" Or selected = "First Appointments" Then
+        UI_RunFirstAppointments
+    Else
+        ClearFirstAppointments
+    End If
+
+    If selected = "All Reports" Or selected = "Patients Dropped" Then
+        UI_RunPatientsDropped
+    Else
+        ClearPatientsDropped
+    End If
+
+    If selected = "All Reports" Or selected = "SDAT Improvement" Then
+        UI_RunSdatImprovement
+    Else
+        ClearSdatImprovement
+    End If
+End Sub
+
+Private Sub ClearReferralsBySource()
+    Dim ws As Worksheet: Set ws = modUtils.DataSheet("Reports")
+    Dim fields(2) As String: fields(0) = "source": fields(1) = "count": fields(2) = "percent"
+    WriteTableRows ws, "A4", 3, New Collection, fields
+    ws.ChartObjects("chtReferralsBySource").Visible = False
+    ws.Range("E5").Value = "Run the report to see results."
+End Sub
+
+Private Sub ClearFirstAppointments()
+    Dim ws As Worksheet: Set ws = modUtils.DataSheet("Reports")
+    Dim fields(2) As String: fields(0) = "patient_name": fields(1) = "first_appt_date": fields(2) = "consultant_name"
+    WriteTableRows ws, "A20", 3, New Collection, fields
+    WriteWeekHelper ws, "J20", New Collection
+    ws.ChartObjects("chtFirstAppointments").Visible = False
+    ws.Range("E21").Value = "Run the report to see results."
+End Sub
+
+Private Sub ClearPatientsDropped()
+    Dim ws As Worksheet: Set ws = modUtils.DataSheet("Reports")
+    Dim fields(2) As String: fields(0) = "patient_name": fields(1) = "dropped_date": fields(2) = "changed_by_name"
+    WriteTableRows ws, "A40", 3, New Collection, fields
+    WriteWeekHelper ws, "J40", New Collection
+    ws.ChartObjects("chtPatientsDropped").Visible = False
+    ws.Range("E41").Value = "Run the report to see results."
+End Sub
+
+Private Sub ClearSdatImprovement()
+    Dim ws As Worksheet: Set ws = modUtils.DataSheet("Reports")
+    Dim fields(5) As String
+    fields(0) = "patient_name": fields(1) = "begin_score": fields(2) = "begin_date"
+    fields(3) = "end_score": fields(4) = "end_date": fields(5) = "pct_improvement"
+    WriteTableRows ws, "A60", 6, New Collection, fields
+    ws.Range("B79").Value = ""
 End Sub
 
 Public Sub UI_ExportReferralsBySource()
@@ -442,4 +509,27 @@ Public Sub UI_ExportSdatImprovement()
     Dim lastRow As Long: lastRow = LastFilledRowFrom(ws, 60, 1)
     If lastRow = 60 Then MsgBox "No data to export -- run the report first.", vbExclamation: Exit Sub
     modExport.ExportRangeToXlsx ws.Range("A60:F" & lastRow), "SdatImprovement.xlsx"
+End Sub
+
+' Shows CalendarPickerForm pre-filled with a report's From/To cell and writes
+' the picked date back into that same cell. The Reports sheet is re-protected
+' with UserInterfaceOnly:=True on every open (see ThisWorkbook.Workbook_Open),
+' so writing to these cells from VBA doesn't need an unprotect/reprotect dance.
+Private Sub PickDateIntoCell(addr As String)
+    Dim ws As Worksheet: Set ws = modUtils.DataSheet("Reports")
+    CalendarPickerForm.InitialDate = Trim(CStr(ws.Range(addr).Value))
+    CalendarPickerForm.SelectedDate = ""
+    CalendarPickerForm.Show
+    If CalendarPickerForm.SelectedDate <> "" Then
+        ws.Range(addr).Value = CalendarPickerForm.SelectedDate
+    End If
+    Unload CalendarPickerForm
+End Sub
+
+Public Sub UI_PickSharedFromDate()
+    PickDateIntoCell "M1"
+End Sub
+
+Public Sub UI_PickSharedToDate()
+    PickDateIntoCell "O1"
 End Sub

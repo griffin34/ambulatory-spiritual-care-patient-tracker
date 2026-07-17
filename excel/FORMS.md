@@ -1,13 +1,26 @@
 # Excel UserForms — Build Checklist
 
 `LoginForm` is done (see `excel/src/LoginForm.frm`). Every other interactive
-dialog in the Excel companion app is also a UserForm, and **UserForm layout
-cannot be created by script** — verified three separate ways (external
-PowerShell COM, external Python/pywin32, and a macro running inside the
-workbook automating itself). `Designer.Width`/`Height`/`Caption` and control
-placement simply aren't exposed to any Automation caller. Each form below has
-to be built by hand in the VBA IDE, following the design spec at
-`docs/superpowers/specs/2026-04-13-ambulatory-patients-excel-design.md`.
+dialog in the Excel companion app is also a UserForm.
+
+Earlier notes here claimed UserForm layout couldn't be created by script at
+all. That's outdated: `Designer.Controls.Add`, moving/resizing existing
+controls (`.Top`/`.Left`), setting `.Caption`, and resizing the form itself
+(`VBComponent.Properties("Height"/"Width").Value`) are all scriptable via COM
+— reconfirmed 2026-07-15 (add a control, set its properties, `wb.Save()`,
+`VBComponents(name).Export(path)` to overwrite the `.frm`/`.frx`, then a fresh
+`Workbooks.Open` of the saved file shows the control persisted correctly).
+Whatever blocked this for the original author isn't reproducible in the
+current environment — if a future session hits a strange automation error
+building UserForms, don't assume it's this same hard wall; retest before
+falling back to manual VBA IDE work.
+
+For any remaining forms below that still need building from scratch, doing
+it by hand in the VBA IDE per the tables below is still the more reliable
+mechanical path (the design spec is at
+`docs/superpowers/specs/2026-04-13-ambulatory-patients-excel-design.md`), but
+know that scripted edits to an *existing* form's layout are a viable option
+now, not just its code.
 
 This file lists every remaining form, its controls, and the exact steps to
 build and commit it, so building one is mechanical rather than a design

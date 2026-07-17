@@ -1,6 +1,35 @@
 Attribute VB_Name = "modUtils"
 Option Explicit
 
+' Set True by bulk operations (e.g. modExport.RunImport) that call several
+' single-record Save/ChangeStatus/etc. subs in a loop, each of which would
+' otherwise call AutoSave individually -- saving an .xlsm on every row of a
+' large import would be very slow. The bulk operation clears this and calls
+' AutoSave itself once, after the loop.
+Public gSuppressAutoSave As Boolean
+
+' Persists the workbook immediately after a data-entry action so the user is
+' never prompted to save on close (see ThisWorkbook.Workbook_BeforeClose).
+Public Sub AutoSave()
+    If Not gSuppressAutoSave Then ThisWorkbook.Save
+End Sub
+
+' Excel Tables' structural operations (ListRows.Add/.Delete) are blocked
+' entirely while a sheet is protected -- even with UserInterfaceOnly:=True
+' (confirmed: "Table features aren't available because the sheet is
+' protected."). So any routine that adds/removes ListObject rows has to fully
+' unprotect first, then re-protect with these same flags afterward (matching
+' build.py's _protect_sheet) -- bracket ONLY the table-structural part, not
+' the whole routine, to minimize the unprotected window.
+Public Sub UnprotectForRefresh(ws As Worksheet)
+    ws.Unprotect
+End Sub
+
+Public Sub ReprotectAfterRefresh(ws As Worksheet)
+    ws.Protect UserInterfaceOnly:=True, DrawingObjects:=True, Contents:=True, _
+        Scenarios:=True, AllowFiltering:=True, AllowSorting:=True
+End Sub
+
 ' Returns the next auto-increment ID for a data sheet.
 ' Uses Max over column A so the result is correct even if rows are sorted
 ' or deleted (e.g., after a purge). Column A holds integer IDs; row 1 is header.
@@ -227,6 +256,21 @@ Public Function IsValidIsoDate(s As String) As Boolean
     dt = DateSerial(y, m, d)
     IsValidIsoDate = (Err.Number = 0) And (Format(dt, "yyyy-mm-dd") = s)
     On Error GoTo 0
+End Function
+
+' Validates an "HH:MM" 24-hour time string. An empty string is valid (field is optional).
+Public Function IsValidTime(s As String) As Boolean
+    If Trim(s) = "" Then
+        IsValidTime = True
+        Exit Function
+    End If
+    If Len(s) <> 5 Then Exit Function
+    If Mid(s, 3, 1) <> ":" Then Exit Function
+    If Not IsNumeric(Left(s, 2)) Then Exit Function
+    If Not IsNumeric(Right(s, 2)) Then Exit Function
+    Dim h As Long, m As Long
+    h = CLng(Left(s, 2)): m = CLng(Right(s, 2))
+    IsValidTime = (h >= 0 And h <= 23 And m >= 0 And m <= 59)
 End Function
 
 ' Deletes a single worksheet row. Call bottom-to-top when deleting multiple

@@ -1,10 +1,10 @@
 VERSION 5.00
 Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} PatientDetailForm 
    Caption         =   "Patient Detail"
-   ClientHeight    =   10632
+   ClientHeight    =   12228
    ClientLeft      =   108
    ClientTop       =   456
-   ClientWidth     =   10980
+   ClientWidth     =   12576
    OleObjectBlob   =   "PatientDetailForm.frx":0000
    StartUpPosition =   1  'CenterOwner
 End
@@ -13,15 +13,15 @@ Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
-
 Option Explicit
+Public patientId As Long
 
 Private Sub UserForm_Activate()
     LoadPatient
 End Sub
 
 Private Sub LoadPatient()
-    Dim p As Object: Set p = modPatients.GetPatient(PatientId)
+    Dim p As Object: Set p = modPatients.GetPatient(patientId)
 
     lblPatientName.Caption = Trim(p("first_name") & " " & p("middle_name") & " " & p("last_name"))
     lblMrn.Caption = p("mrn") & ""
@@ -32,7 +32,7 @@ Private Sub LoadPatient()
     lblLanguage.Caption = p("language") & ""
 
     Dim currentStatus As String: currentStatus = p("current_status") & ""
-    lblStatusBadge.Caption = modPatients.StatusLabel(currentStatus)
+    lblStatusBadge.Caption = modPatients.statusLabel(currentStatus)
     lblStatusBadge.BackColor = StatusBadgeColor(currentStatus)
 
     ' ColumnWidths was fixed at 7 columns at design time (date/time/type/
@@ -44,7 +44,7 @@ Private Sub LoadPatient()
     lstAppointments.ColumnCount = 8
     lstAppointments.ColumnWidths = "0 pt;55 pt;40 pt;55 pt;70 pt;55 pt;25 pt;90 pt"
     Dim ap As Object
-    For Each ap In modAppointments.GetForPatient(PatientId)
+    For Each ap In modAppointments.GetForPatient(patientId)
         lstAppointments.AddItem ap("id")
         Dim apptIdx As Long: apptIdx = lstAppointments.ListCount - 1
         lstAppointments.List(apptIdx, 1) = ap("date")
@@ -62,13 +62,13 @@ Private Sub LoadPatient()
         cboChangeStatus.AddItem CStr(lbl)
     Next lbl
     If currentStatus <> "deleted" Then
-        cboChangeStatus.Value = modPatients.StatusLabel(currentStatus)
+        cboChangeStatus.value = modPatients.statusLabel(currentStatus)
     End If
 
     lstStatusHistory.Clear
     lstStatusHistory.ColumnCount = 3
     Dim h As Object
-    For Each h In modPatients.GetStatusHistory(PatientId)
+    For Each h In modPatients.GetStatusHistory(patientId)
         lstStatusHistory.AddItem h("status")
         lstStatusHistory.List(lstStatusHistory.ListCount - 1, 1) = h("changed_by_name")
         lstStatusHistory.List(lstStatusHistory.ListCount - 1, 2) = h("changed_at")
@@ -105,30 +105,53 @@ Private Function StatusBadgeColor(currentStatus As String) As Long
 End Function
 
 Private Sub btnApplyStatus_Click()
-    If Trim(cboChangeStatus.Value) = "" Then Exit Sub
-    modPatients.ChangeStatus PatientId, modPatients.StatusInternal(cboChangeStatus.Value)
+    If Trim(cboChangeStatus.value) = "" Then Exit Sub
+    modPatients.ChangeStatus patientId, modPatients.StatusInternal(cboChangeStatus.value)
     LoadPatient
 End Sub
 
 Private Sub btnEditPatient_Click()
-    AddEditPatientForm.PatientId = PatientId
+    AddEditPatientForm.patientId = patientId
     AddEditPatientForm.Show
     LoadPatient
 End Sub
 
 Private Sub btnAddAppointment_Click()
-    AddEditAppointmentForm.PatientId = PatientId
-    AddEditAppointmentForm.AppointmentId = 0
+    AddEditAppointmentForm.patientId = patientId
+    AddEditAppointmentForm.appointmentId = 0
     AddEditAppointmentForm.Show
     LoadPatient
 End Sub
 
 Private Sub btnEditAppointment_Click()
-    If lstAppointments.ListIndex = -1 Then Exit Sub
-    AddEditAppointmentForm.AppointmentId = CLng(lstAppointments.Column(0, lstAppointments.ListIndex))
-    AddEditAppointmentForm.PatientId = PatientId
+    If lstAppointments.ListIndex = -1 Then
+        MsgBox "Select an appointment first.", vbExclamation
+        Exit Sub
+    End If
+    AddEditAppointmentForm.appointmentId = CLng(lstAppointments.Column(0, lstAppointments.ListIndex))
+    AddEditAppointmentForm.patientId = patientId
     AddEditAppointmentForm.Show
     LoadPatient
+End Sub
+
+Private Sub btnPickSdatBeginDate_Click()
+    CalendarPickerForm.InitialDate = Trim(txtSdatBeginDate.Text)
+    CalendarPickerForm.SelectedDate = ""
+    CalendarPickerForm.Show
+    If CalendarPickerForm.SelectedDate <> "" Then
+        txtSdatBeginDate.Text = CalendarPickerForm.SelectedDate
+    End If
+    Unload CalendarPickerForm
+End Sub
+
+Private Sub btnPickSdatEndDate_Click()
+    CalendarPickerForm.InitialDate = Trim(txtSdatEndDate.Text)
+    CalendarPickerForm.SelectedDate = ""
+    CalendarPickerForm.Show
+    If CalendarPickerForm.SelectedDate <> "" Then
+        txtSdatEndDate.Text = CalendarPickerForm.SelectedDate
+    End If
+    Unload CalendarPickerForm
 End Sub
 
 Private Sub btnSaveSdat_Click()
@@ -143,7 +166,7 @@ Private Sub btnSaveSdat_Click()
         MsgBox "SDAT dates must be YYYY-MM-DD, or blank.", vbExclamation
         Exit Sub
     End If
-    modPatients.SaveSdat PatientId, beginScore, Trim(txtSdatBeginDate.Text), endScore, Trim(txtSdatEndDate.Text)
+    modPatients.SaveSdat patientId, beginScore, Trim(txtSdatBeginDate.Text), endScore, Trim(txtSdatEndDate.Text)
     LoadPatient
 End Sub
 
@@ -165,19 +188,20 @@ Private Sub btnSaveNotes_Click()
         MsgBox "Notes must be 256 characters or fewer.", vbExclamation
         Exit Sub
     End If
-    modPatients.SaveNotes PatientId, txtNotes.Text
+    modPatients.SaveNotes patientId, txtNotes.Text
     LoadPatient
 End Sub
 
 Private Sub btnDeletePatient_Click()
     If MsgBox("Delete this patient? This can be undone from the Deleted filter.", _
               vbQuestion + vbYesNo, "Confirm Delete") <> vbYes Then Exit Sub
-    modPatients.Delete PatientId
+    modPatients.Delete patientId
     LoadPatient
 End Sub
 
 Private Sub btnRestorePatient_Click()
-    modPatients.Restore PatientId
+    modPatients.Restore patientId
     LoadPatient
 End Sub
+
 

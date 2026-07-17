@@ -1,5 +1,5 @@
 VERSION 5.00
-Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} LoginForm
+Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} LoginForm 
    Caption         =   "Ambulatory Patient Tracking - Login"
    ClientHeight    =   3432
    ClientLeft      =   108
@@ -15,21 +15,25 @@ Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 Option Explicit
 
+Private Sub UserForm_Initialize()
+    emailLabel.Caption = "Username:"
+End Sub
+
 Private Sub btnLogin_Click()
-    Dim email As String
+    Dim username As String
     Dim password As String
-    email = Trim(txtEmail.Text)
+    username = Trim(txtEmail.Text)
     password = txtPassword.Text
 
-    If email = "" Or password = "" Then
-        ShowError "Email and password are required."
+    If username = "" Or password = "" Then
+        ShowError "Username and password are required."
         Exit Sub
     End If
 
-    If modAuth.ValidateLogin(email, password) Then
+    If modAuth.ValidateLogin(username, password) Then
         Dim ws As Worksheet
         For Each ws In ThisWorkbook.Sheets
-            If Left(ws.Name, 5) <> "_data" Then
+            If Left(ws.name, 5) <> "_data" Then
                 ws.Visible = xlSheetVisible
             End If
         Next ws
@@ -38,7 +42,7 @@ Private Sub btnLogin_Click()
         If modAuth.IsAdmin() Then modPurge.RunPurgeCheck
         Unload Me
     Else
-        ShowError "Invalid email or password."
+        ShowError "Invalid username or password."
         txtPassword.Text = ""
         txtPassword.SetFocus
     End If
@@ -55,3 +59,4 @@ Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
         ThisWorkbook.Close SaveChanges:=False
     End If
 End Sub
+

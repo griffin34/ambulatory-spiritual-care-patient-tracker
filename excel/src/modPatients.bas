@@ -267,6 +267,7 @@ Public Sub Save(patientId As Long, mrn As String, lastName As String, firstName 
     If patientId = 0 Then
         AppendStatusHistory newId, "ready_to_schedule"
     End If
+    modUtils.AutoSave
 End Sub
 
 Private Sub AppendStatusHistory(patientId As Long, status As String)
@@ -288,6 +289,7 @@ Public Sub ChangeStatus(patientId As Long, newStatus As String)
         ws.Cells(r, modUtils.ColIndex(ws, "is_active")).Value = 0
     End If
     AppendStatusHistory patientId, newStatus
+    modUtils.AutoSave
 End Sub
 
 Public Sub Delete(patientId As Long)
@@ -314,6 +316,7 @@ Public Sub SaveSdat(patientId As Long, beginScore As Variant, beginDate As Strin
     ws.Cells(r, modUtils.ColIndex(ws, "sdat_end_score")).Value = endScore
     ws.Cells(r, modUtils.ColIndex(ws, "sdat_end_date")).Value = endDate
     ws.Cells(r, modUtils.ColIndex(ws, "sdat_pct_improvement")).Value = ComputeSdatPct(beginScore, endScore)
+    modUtils.AutoSave
 End Sub
 
 Private Function ComputeSdatPct(beginScore As Variant, endScore As Variant) As Variant
@@ -336,6 +339,7 @@ Public Sub SaveNotes(patientId As Long, notes As String)
     If r = 0 Then Exit Sub
     If Len(notes) > 256 Then notes = Left(notes, 256)
     ws.Cells(r, modUtils.ColIndex(ws, "notes")).Value = notes
+    modUtils.AutoSave
 End Sub
 
 ' ── WorkQueue sheet UI entry points ────────────────────────────────────────
@@ -348,8 +352,14 @@ End Sub
 Public Sub UI_ViewSelectedPatient()
     Dim ws As Worksheet: Set ws = modUtils.DataSheet("WorkQueue")
     Dim tbl As ListObject: Set tbl = ws.ListObjects("tblWorkQueue")
-    If tbl.DataBodyRange Is Nothing Then Exit Sub
-    If Intersect(Application.ActiveCell, tbl.DataBodyRange) Is Nothing Then Exit Sub
+    If tbl.DataBodyRange Is Nothing Then
+        MsgBox "No patients to view.", vbExclamation
+        Exit Sub
+    End If
+    If Intersect(Application.ActiveCell, tbl.DataBodyRange) Is Nothing Then
+        MsgBox "Select a patient row first.", vbExclamation
+        Exit Sub
+    End If
     Dim rowOffset As Long: rowOffset = Application.ActiveCell.Row - tbl.DataBodyRange.Row + 1
     Dim pid As Long: pid = tbl.DataBodyRange(rowOffset, 1).Value
     PatientDetailForm.PatientId = pid
@@ -380,7 +390,7 @@ Public Sub RefreshWorkQueue()
         ws.Cells(1 + i, 16).Value = sources(i) ' column P = 16
     Next i
 
-    Dim statusLabel As String: statusLabel = CStr(ws.Range("B1").Value)
+    Dim statusLabel As String: statusLabel = CStr(ws.Range("C1").Value)
     Dim statusFilter As String
     If statusLabel = "" Or statusLabel = "All" Then
         statusFilter = ""
@@ -388,7 +398,7 @@ Public Sub RefreshWorkQueue()
         statusFilter = StatusInternal(statusLabel)
     End If
 
-    Dim srcLabel As String: srcLabel = CStr(ws.Range("D1").Value)
+    Dim srcLabel As String: srcLabel = CStr(ws.Range("E1").Value)
     Dim referralSourceId As Long
     If srcLabel = "" Or srcLabel = "All" Then
         referralSourceId = 0
@@ -396,10 +406,11 @@ Public Sub RefreshWorkQueue()
         referralSourceId = modUtils.LovIdForValue("referral_source", srcLabel)
     End If
 
-    Dim searchText As String: searchText = CStr(ws.Range("F1").Value)
+    Dim searchText As String: searchText = CStr(ws.Range("G1").Value)
     Dim results As Collection: Set results = ListForWorkQueue(statusFilter, referralSourceId, searchText)
 
     Dim tbl As ListObject: Set tbl = ws.ListObjects("tblWorkQueue")
+    modUtils.UnprotectForRefresh ws
     If Not tbl.DataBodyRange Is Nothing Then
         tbl.DataBodyRange.Delete
     End If
@@ -421,6 +432,7 @@ Public Sub RefreshWorkQueue()
             r = r + 1
         Next d
     End If
+    modUtils.ReprotectAfterRefresh ws
 
     Dim counts As Object: Set counts = CountsByStatus()
     ws.Range("B2").Value = "Total Active: " & counts("total_active") & _

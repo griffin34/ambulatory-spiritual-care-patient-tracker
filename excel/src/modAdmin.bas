@@ -2,7 +2,8 @@ Attribute VB_Name = "modAdmin"
 Option Explicit
 
 ' Creates a new user account with a hashed password and appends it to _data_users.
-Public Sub CreateUser(name As String, email As String, password As String, role As String)
+' username is the sign-in credential (modAuth.ValidateLogin); email is informational only.
+Public Sub CreateUser(name As String, username As String, email As String, password As String, role As String)
     Dim ws As Worksheet
     Set ws = modUtils.DataSheet("_data_users")
     Dim newRow As Long
@@ -10,11 +11,13 @@ Public Sub CreateUser(name As String, email As String, password As String, role 
 
     ws.Cells(newRow, 1).Value = modUtils.NextId(ws)
     ws.Cells(newRow, 2).Value = name
-    ws.Cells(newRow, 3).Value = email
-    ws.Cells(newRow, 4).Value = modAuth.HashPassword(password)
-    ws.Cells(newRow, 5).Value = role
-    ws.Cells(newRow, 6).Value = 1
-    ws.Cells(newRow, 7).Value = modUtils.NowISO()
+    ws.Cells(newRow, 3).Value = username
+    ws.Cells(newRow, 4).Value = email
+    ws.Cells(newRow, 5).Value = modAuth.HashPassword(password)
+    ws.Cells(newRow, 6).Value = role
+    ws.Cells(newRow, 7).Value = 1
+    ws.Cells(newRow, 8).Value = modUtils.NowISO()
+    modUtils.AutoSave
 End Sub
 
 ' Returns a user's display name, or "" if not found / userId<=0.
@@ -33,6 +36,7 @@ Public Function ListUsers() As Collection
     Dim last As Long: last = modUtils.LastDataRow(ws)
     Dim cId As Long: cId = modUtils.ColIndex(ws, "id")
     Dim cName As Long: cName = modUtils.ColIndex(ws, "name")
+    Dim cUsername As Long: cUsername = modUtils.ColIndex(ws, "username")
     Dim cEmail As Long: cEmail = modUtils.ColIndex(ws, "email")
     Dim cRole As Long: cRole = modUtils.ColIndex(ws, "role")
     Dim cActive As Long: cActive = modUtils.ColIndex(ws, "is_active")
@@ -41,6 +45,7 @@ Public Function ListUsers() As Collection
         Dim d As Object: Set d = CreateObject("Scripting.Dictionary")
         d("id") = ws.Cells(i, cId).Value
         d("name") = ws.Cells(i, cName).Value
+        d("username") = ws.Cells(i, cUsername).Value
         d("email") = ws.Cells(i, cEmail).Value
         d("role") = ws.Cells(i, cRole).Value
         d("is_active") = ws.Cells(i, cActive).Value
@@ -61,6 +66,7 @@ Public Sub ResetPassword(userId As Long, newPassword As String)
     Dim r As Long: r = modUtils.FindById(ws, userId)
     If r = 0 Then Exit Sub
     ws.Cells(r, modUtils.ColIndex(ws, "password_hash")).Value = modAuth.HashPassword(newPassword)
+    modUtils.AutoSave
 End Sub
 
 ' ── List of Values management ──────────────────────────────────────────────
@@ -90,10 +96,32 @@ Public Function ListLovAll(category As String) As Collection
     Set ListLovAll = result
 End Function
 
+' Shifts every OTHER row in `category` whose sort_order >= newSortOrder up by
+' one, so assigning that position to a (re)inserted/edited value doesn't
+' collide with -- or silently tie with -- whatever already sat there. E.g.
+' inserting at position 1 pushes the existing 1,2,3.. down to 2,3,4..
+' excludeRow lets an edit-in-place skip re-shifting the row being set itself.
+Private Sub ShiftSortOrdersFrom(category As String, newSortOrder As Long, excludeRow As Long)
+    Dim ws As Worksheet: Set ws = modUtils.DataSheet("_data_lov")
+    Dim last As Long: last = modUtils.LastDataRow(ws)
+    Dim cCategory As Long: cCategory = modUtils.ColIndex(ws, "category")
+    Dim cSort As Long: cSort = modUtils.ColIndex(ws, "sort_order")
+    Dim i As Long
+    For i = 2 To last
+        If i <> excludeRow And ws.Cells(i, cCategory).Value = category Then
+            If CLng(ws.Cells(i, cSort).Value) >= newSortOrder Then
+                ws.Cells(i, cSort).Value = CLng(ws.Cells(i, cSort).Value) + 1
+            End If
+        End If
+    Next i
+End Sub
+
 Public Sub UpdateLovRow(lovId As Long, newValue As String, newSortOrder As Long)
     Dim ws As Worksheet: Set ws = modUtils.DataSheet("_data_lov")
     Dim r As Long: r = modUtils.FindById(ws, lovId)
     If r = 0 Then Exit Sub
+    Dim category As String: category = CStr(ws.Cells(r, modUtils.ColIndex(ws, "category")).Value)
+    ShiftSortOrdersFrom category, newSortOrder, r
     ws.Cells(r, modUtils.ColIndex(ws, "value")).Value = newValue
     ws.Cells(r, modUtils.ColIndex(ws, "sort_order")).Value = newSortOrder
 End Sub
@@ -110,12 +138,14 @@ Public Sub UpsertLov(category As String, newLovValue As String, sortOrder As Lon
     For i = 2 To last
         If ws.Cells(i, cCategory).Value = category And _
            LCase(CStr(ws.Cells(i, cValue).Value)) = LCase(newLovValue) Then
+            ShiftSortOrdersFrom category, sortOrder, i
             ws.Cells(i, modUtils.ColIndex(ws, "is_active")).Value = 1
             ws.Cells(i, modUtils.ColIndex(ws, "sort_order")).Value = sortOrder
             Exit Sub
         End If
     Next i
 
+    ShiftSortOrdersFrom category, sortOrder, 0
     Dim r As Long: r = last + 1
     ws.Cells(r, modUtils.ColIndex(ws, "id")).Value = modUtils.NextId(ws)
     ws.Cells(r, cCategory).Value = category
@@ -195,6 +225,55 @@ Public Sub SetConsultantActive(consultantId As Long, isActive As Boolean)
     ws.Cells(r, modUtils.ColIndex(ws, "is_active")).Value = IIf(isActive, 1, 0)
 End Sub
 
+' Returns a single _data_lov row as a Dictionary (id/category/value/sort_order/
+' is_active), or Nothing if lovId doesn't exist -- used to pre-fill AddEditLovForm.
+Public Function FindLov(lovId As Long) As Object
+    Dim ws As Worksheet: Set ws = modUtils.DataSheet("_data_lov")
+    Dim r As Long: r = modUtils.FindById(ws, lovId)
+    If r = 0 Then Exit Function
+    Dim d As Object: Set d = CreateObject("Scripting.Dictionary")
+    d("id") = lovId
+    d("category") = ws.Cells(r, modUtils.ColIndex(ws, "category")).Value
+    d("value") = ws.Cells(r, modUtils.ColIndex(ws, "value")).Value
+    d("sort_order") = ws.Cells(r, modUtils.ColIndex(ws, "sort_order")).Value
+    d("is_active") = ws.Cells(r, modUtils.ColIndex(ws, "is_active")).Value
+    Set FindLov = d
+End Function
+
+' Returns a single _data_consultants row as a Dictionary (id/name/is_chaplain/
+' is_active), or Nothing if consultantId doesn't exist -- used to pre-fill
+' AddEditLovForm for the Consultants category.
+Public Function FindConsultantById(consultantId As Long) As Object
+    Dim ws As Worksheet: Set ws = modUtils.DataSheet("_data_consultants")
+    Dim r As Long: r = modUtils.FindById(ws, consultantId)
+    If r = 0 Then Exit Function
+    Dim d As Object: Set d = CreateObject("Scripting.Dictionary")
+    d("id") = consultantId
+    d("name") = ws.Cells(r, modUtils.ColIndex(ws, "name")).Value
+    d("is_chaplain") = ws.Cells(r, modUtils.ColIndex(ws, "is_chaplain")).Value
+    d("is_active") = ws.Cells(r, modUtils.ColIndex(ws, "is_active")).Value
+    Set FindConsultantById = d
+End Function
+
+' Default sort order offered when adding a new value: one past the highest
+' currently in use for that category, so a plain "+ Add" appends to the end
+' without triggering any ShiftSortOrdersFrom reshuffle. The user can still
+' type an earlier number to insert it mid-list.
+Public Function NextLovSortOrder(category As String) As Long
+    Dim ws As Worksheet: Set ws = modUtils.DataSheet("_data_lov")
+    Dim last As Long: last = modUtils.LastDataRow(ws)
+    Dim cCategory As Long: cCategory = modUtils.ColIndex(ws, "category")
+    Dim cSort As Long: cSort = modUtils.ColIndex(ws, "sort_order")
+    Dim maxSort As Long: maxSort = 0
+    Dim i As Long
+    For i = 2 To last
+        If ws.Cells(i, cCategory).Value = category Then
+            If CLng(ws.Cells(i, cSort).Value) > maxSort Then maxSort = CLng(ws.Cells(i, cSort).Value)
+        End If
+    Next i
+    NextLovSortOrder = maxSort + 1
+End Function
+
 ' ── Admin sheet UI ──────────────────────────────────────────────────────────
 Public Function CategoryInternal(displayLabel As String) As String
     Select Case displayLabel
@@ -207,6 +286,19 @@ Public Function CategoryInternal(displayLabel As String) As String
     End Select
 End Function
 
+' Singular, human-readable label for AddEditLovForm's caption ("Add Religion",
+' "Edit Consultant"), distinct from CategoryInternal's plural sheet-dropdown text.
+Public Function CategoryDisplayName(category As String) As String
+    Select Case category
+        Case "referral_source": CategoryDisplayName = "Referral Source"
+        Case "religion": CategoryDisplayName = "Religion"
+        Case "language": CategoryDisplayName = "Language"
+        Case "consultants": CategoryDisplayName = "Consultant"
+        Case "appointment_type": CategoryDisplayName = "Appointment Type"
+        Case Else: CategoryDisplayName = "Value"
+    End Select
+End Function
+
 Public Sub RefreshAdmin()
     RefreshUsersTable
     RefreshLovTable
@@ -215,31 +307,41 @@ End Sub
 Public Sub RefreshUsersTable()
     Dim ws As Worksheet: Set ws = modUtils.DataSheet("Admin")
     Dim tbl As ListObject: Set tbl = ws.ListObjects("tblUsers")
+    modUtils.UnprotectForRefresh ws
     If Not tbl.DataBodyRange Is Nothing Then tbl.DataBodyRange.Delete
 
     Dim users As Collection: Set users = ListUsers()
-    If users.Count = 0 Then Exit Sub
+    If users.Count = 0 Then
+        modUtils.ReprotectAfterRefresh ws
+        Exit Sub
+    End If
     Dim r As Long: r = 1
     Dim u As Object
     For Each u In users
         tbl.ListRows.Add
         tbl.DataBodyRange(r, 1).Value = u("id")
         tbl.DataBodyRange(r, 2).Value = u("name")
-        tbl.DataBodyRange(r, 3).Value = u("email")
-        tbl.DataBodyRange(r, 4).Value = u("role")
-        tbl.DataBodyRange(r, 5).Value = IIf(u("is_active") = 1, "Active", "Inactive")
+        tbl.DataBodyRange(r, 3).Value = u("username")
+        tbl.DataBodyRange(r, 4).Value = u("email")
+        tbl.DataBodyRange(r, 5).Value = u("role")
+        tbl.DataBodyRange(r, 6).Value = IIf(u("is_active") = 1, "Active", "Inactive")
         r = r + 1
     Next u
+    modUtils.ReprotectAfterRefresh ws
 End Sub
 
 Public Sub RefreshLovTable()
     Dim ws As Worksheet: Set ws = modUtils.DataSheet("Admin")
     Dim tbl As ListObject: Set tbl = ws.ListObjects("tblLov")
+    modUtils.UnprotectForRefresh ws
     If Not tbl.DataBodyRange Is Nothing Then tbl.DataBodyRange.Delete
 
     Dim categoryLabel As String: categoryLabel = CStr(ws.Range("I2").Value)
     Dim category As String: category = CategoryInternal(categoryLabel)
-    If category = "" Then Exit Sub
+    If category = "" Then
+        modUtils.ReprotectAfterRefresh ws
+        Exit Sub
+    End If
 
     Application.EnableEvents = False
     Dim r As Long: r = 1
@@ -290,7 +392,10 @@ End Sub
 Public Sub UI_ResetSelectedUserPassword()
     If Not modAuth.IsAdmin() Then MsgBox "Admin access required.", vbExclamation: Exit Sub
     Dim userId As Long: userId = SelectedIdInTable("tblUsers")
-    If userId = 0 Then Exit Sub
+    If userId = 0 Then
+        MsgBox "Select a user row first.", vbExclamation
+        Exit Sub
+    End If
     ResetPasswordForm.UserId = userId
     ResetPasswordForm.Show
 End Sub
@@ -298,17 +403,25 @@ End Sub
 Public Sub UI_DeactivateSelectedUser()
     If Not modAuth.IsAdmin() Then MsgBox "Admin access required.", vbExclamation: Exit Sub
     Dim userId As Long: userId = SelectedIdInTable("tblUsers")
-    If userId = 0 Then Exit Sub
+    If userId = 0 Then
+        MsgBox "Select a user row first.", vbExclamation
+        Exit Sub
+    End If
     SetUserActive userId, False
     RefreshUsersTable
+    modUtils.AutoSave
 End Sub
 
 Public Sub UI_ActivateSelectedUser()
     If Not modAuth.IsAdmin() Then MsgBox "Admin access required.", vbExclamation: Exit Sub
     Dim userId As Long: userId = SelectedIdInTable("tblUsers")
-    If userId = 0 Then Exit Sub
+    If userId = 0 Then
+        MsgBox "Select a user row first.", vbExclamation
+        Exit Sub
+    End If
     SetUserActive userId, True
     RefreshUsersTable
+    modUtils.AutoSave
 End Sub
 
 Public Sub UI_DeactivateSelectedLov()
@@ -316,13 +429,17 @@ Public Sub UI_DeactivateSelectedLov()
     Dim categoryLabel As String: categoryLabel = CStr(modUtils.DataSheet("Admin").Range("I2").Value)
     Dim category As String: category = CategoryInternal(categoryLabel)
     Dim lovId As Long: lovId = SelectedIdInTable("tblLov")
-    If lovId = 0 Then Exit Sub
+    If lovId = 0 Then
+        MsgBox "Select a value row first.", vbExclamation
+        Exit Sub
+    End If
     If category = "consultants" Then
         SetConsultantActive lovId, False
     Else
         DeactivateLov lovId
     End If
     RefreshLovTable
+    modUtils.AutoSave
 End Sub
 
 Public Sub UI_RestoreSelectedLov()
@@ -330,35 +447,45 @@ Public Sub UI_RestoreSelectedLov()
     Dim categoryLabel As String: categoryLabel = CStr(modUtils.DataSheet("Admin").Range("I2").Value)
     Dim category As String: category = CategoryInternal(categoryLabel)
     Dim lovId As Long: lovId = SelectedIdInTable("tblLov")
-    If lovId = 0 Then Exit Sub
+    If lovId = 0 Then
+        MsgBox "Select a value row first.", vbExclamation
+        Exit Sub
+    End If
     If category = "consultants" Then
         SetConsultantActive lovId, True
     Else
         RestoreLov lovId
     End If
     RefreshLovTable
+    modUtils.AutoSave
 End Sub
 
-Public Sub UI_AddLovValue()
+Public Sub UI_OpenAddLov()
     If Not modAuth.IsAdmin() Then MsgBox "Admin access required.", vbExclamation: Exit Sub
-    Dim ws As Worksheet: Set ws = modUtils.DataSheet("Admin")
-    Dim categoryLabel As String: categoryLabel = CStr(ws.Range("I2").Value)
+    Dim categoryLabel As String: categoryLabel = CStr(modUtils.DataSheet("Admin").Range("I2").Value)
     Dim category As String: category = CategoryInternal(categoryLabel)
-    Dim newLovValue As String: newLovValue = Trim(CStr(ws.Range("I3").Value))
-    If newLovValue = "" Then Exit Sub
+    If category = "" Then Exit Sub
 
-    If category = "consultants" Then
-        Dim chaplainText As String: chaplainText = UCase(Trim(CStr(ws.Range("M3").Value)))
-        Dim isChaplain As Boolean: isChaplain = (chaplainText = "Y" Or chaplainText = "YES")
-        UpsertConsultant 0, newLovValue, isChaplain
-    Else
-        Dim sortOrder As Long
-        If IsNumeric(ws.Range("K3").Value) Then sortOrder = CLng(ws.Range("K3").Value)
-        UpsertLov category, newLovValue, sortOrder
+    AddEditLovForm.Category = category
+    AddEditLovForm.LovId = 0
+    AddEditLovForm.Show
+    RefreshLovTable
+End Sub
+
+Public Sub UI_OpenEditLov()
+    If Not modAuth.IsAdmin() Then MsgBox "Admin access required.", vbExclamation: Exit Sub
+    Dim categoryLabel As String: categoryLabel = CStr(modUtils.DataSheet("Admin").Range("I2").Value)
+    Dim category As String: category = CategoryInternal(categoryLabel)
+    If category = "" Then Exit Sub
+
+    Dim lovId As Long: lovId = SelectedIdInTable("tblLov")
+    If lovId = 0 Then
+        MsgBox "Select a value row first.", vbExclamation
+        Exit Sub
     End If
 
-    ws.Range("I3").Value = ""
-    ws.Range("K3").Value = ""
-    ws.Range("M3").Value = ""
+    AddEditLovForm.Category = category
+    AddEditLovForm.LovId = lovId
+    AddEditLovForm.Show
     RefreshLovTable
 End Sub
