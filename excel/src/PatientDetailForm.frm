@@ -174,12 +174,26 @@ End Sub
 Private Function ParsedScore(s As String) As Variant
     If Trim(s) = "" Then
         ParsedScore = Empty
-    ElseIf Not IsNumeric(s) Then
+        Exit Function
+    End If
+    If Not IsNumeric(s) Then
         ParsedScore = "invalid"
-    ElseIf CLng(s) <> CDbl(s) Or CLng(s) < 0 Or CLng(s) > 40 Then
+        Exit Function
+    End If
+    ' IsNumeric accepts values too large for CLng (e.g. "99999999999" or
+    ' scientific notation) -- CLng(s) below would raise an unhandled Overflow
+    ' error rather than the intended "invalid" result, so guard it explicitly
+    ' instead of relying on VBA's Or (which does not short-circuit and would
+    ' evaluate CLng(s) unconditionally).
+    On Error Resume Next
+    Dim longVal As Long
+    longVal = CLng(s)
+    Dim overflowed As Boolean: overflowed = (Err.Number <> 0)
+    On Error GoTo 0
+    If overflowed Or longVal <> CDbl(s) Or longVal < 0 Or longVal > 40 Then
         ParsedScore = "invalid"
     Else
-        ParsedScore = CLng(s)
+        ParsedScore = longVal
     End If
 End Function
 

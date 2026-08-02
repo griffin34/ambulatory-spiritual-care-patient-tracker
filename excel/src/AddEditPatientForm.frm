@@ -81,6 +81,10 @@ Private Sub btnSave_Click()
         ShowError "First and last name are required."
         Exit Sub
     End If
+    If Trim(txtReferralDate.Text) = "" Then
+        ShowError "Referral date is required."
+        Exit Sub
+    End If
     If Not modUtils.IsValidIsoDate(Trim(txtReferralDate.Text)) Then
         ShowError "Referral date must be YYYY-MM-DD."
         Exit Sub

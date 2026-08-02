@@ -138,7 +138,9 @@ End Function
 ' against; an intentional, flagged deviation from the spec's literal wording
 ' for "Replace", consistent with the multi-sheet-vs-flat-sheet decision above).
 Public Sub RunImport(filePath As String, mode As String)
-    Dim srcWb As Workbook: Set srcWb = Application.Workbooks.Open(filePath, ReadOnly:=True)
+    Dim srcWb As Workbook
+    On Error GoTo Fail
+    Set srcWb = Application.Workbooks.Open(filePath, ReadOnly:=True)
     Dim srcWs As Worksheet: Set srcWs = srcWb.Sheets(1)
     Dim last As Long: last = srcWs.Cells(srcWs.Rows.Count, 1).End(xlUp).Row
 
@@ -214,9 +216,26 @@ ContinueImportLoop:
     Next r
 
     srcWb.Close SaveChanges:=False
+    Set srcWb = Nothing
     Application.EnableEvents = True
     modUtils.gSuppressAutoSave = False
     modUtils.AutoSave
+    Exit Sub
+
+Fail:
+    ' A mid-loop failure here must not leave EnableEvents/gSuppressAutoSave
+    ' stuck (every worksheet event handler and every later AutoSave app-wide
+    ' would silently stop working for the rest of the session) or leak the
+    ' open source workbook.
+    Dim errDesc As String: errDesc = Err.Description
+    If Not srcWb Is Nothing Then
+        On Error Resume Next
+        srcWb.Close SaveChanges:=False
+        On Error GoTo 0
+    End If
+    Application.EnableEvents = True
+    modUtils.gSuppressAutoSave = False
+    MsgBox "Import failed: " & errDesc, vbCritical, "Import Error"
 End Sub
 
 Private Sub WipeDataRows(ws As Worksheet)

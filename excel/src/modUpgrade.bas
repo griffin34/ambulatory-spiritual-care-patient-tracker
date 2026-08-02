@@ -149,6 +149,19 @@ Private Function MergeSheet(oldWb As Workbook, sheetName As String) As String
     If sheetName = "_data_users" Then
         cUsername = modUtils.ColIndex(newWs, "username")
         Set taken = CreateObject("Scripting.Dictionary")
+        ' Pre-seed with every already-non-blank username in the OLD file so a
+        ' blank-username row processed earlier in row order can never end up
+        ' colliding with an explicit username that only appears later in the
+        ' same file -- taken must be fully populated before any derivation
+        ' happens, not built up incrementally as rows are visited.
+        Dim oldUsernameCol As Long: oldUsernameCol = modUtils.ColIndex(oldWs, "username")
+        If oldUsernameCol > 0 Then
+            Dim seedRow As Long
+            For seedRow = 2 To oldLast
+                Dim existingUname As String: existingUname = Trim(CStr(oldWs.Cells(seedRow, oldUsernameCol).Value))
+                If existingUname <> "" Then taken(LCase(existingUname)) = True
+            Next seedRow
+        End If
     End If
 
     Dim destRow As Long: destRow = 2

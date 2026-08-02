@@ -286,13 +286,18 @@ Private Function GroupByWeekLabel(rows As Collection, dateField As String) As Co
     Set GroupByWeekLabel = result
 End Function
 
-Private Sub WriteWeekHelper(ws As Worksheet, topLeftCell As String, weekRows As Collection)
+' bufferRows bounds both the clear and the write to stay within this section's
+' own space on the Reports sheet -- see WriteTableRows for why this can't be a
+' generous fixed constant (the 4 stacked sections are only 16-20 rows apart,
+' and a too-large buffer permanently wipes the next section's static header).
+Private Sub WriteWeekHelper(ws As Worksheet, topLeftCell As String, weekRows As Collection, bufferRows As Long)
     Dim topRow As Long: topRow = ws.Range(topLeftCell).Row
     Dim topCol As Long: topCol = ws.Range(topLeftCell).Column
-    ws.Range(ws.Cells(topRow + 1, topCol), ws.Cells(topRow + 200, topCol + 1)).ClearContents
+    ws.Range(ws.Cells(topRow + 1, topCol), ws.Cells(topRow + bufferRows, topCol + 1)).ClearContents
     Dim r As Long: r = topRow + 1
     Dim d As Object
     For Each d In weekRows
+        If r > topRow + bufferRows Then Exit For ' more rows than this section has room for -- stop rather than overflow into the next section
         ws.Cells(r, topCol).Value = d("label")
         ws.Cells(r, topCol + 1).Value = d("count")
         r = r + 1
@@ -314,16 +319,27 @@ End Sub
 
 ' Plain-range table write (NOT a ListObject -- see _build_reports_sheet's
 ' docstring for why: 4 stacked ListObjects on one sheet hit a real Excel
-' row-insert restriction). Clears a fixed buffer below the header, then
-' writes rows starting at topRow+1.
-Private Sub WriteTableRows(ws As Worksheet, topLeftCell As String, numCols As Long, rows As Collection, fieldNames() As String)
+' row-insert restriction). Clears a buffer below the header, then writes rows
+' starting at topRow+1.
+'
+' bufferRows MUST stay within this section's own space -- the 4 report
+' sections on this sheet sit only 16-20 rows apart (see build.py's
+' _build_reports_sheet: headers at A4/A20/A40/A60, next section's label at
+' A17/A37/A57/A79), so a buffer generous enough to reach into a neighboring
+' section permanently wipes that section's static header text the moment this
+' section is ever cleared or written -- confirmed: the original fixed
+' 500-row buffer did exactly this on literally the first Run click. Each call
+' site below passes the largest bufferRows that still stops short of the next
+' section's earliest static content.
+Private Sub WriteTableRows(ws As Worksheet, topLeftCell As String, numCols As Long, rows As Collection, fieldNames() As String, bufferRows As Long)
     Dim topRow As Long: topRow = ws.Range(topLeftCell).Row
     Dim topCol As Long: topCol = ws.Range(topLeftCell).Column
-    ws.Range(ws.Cells(topRow + 1, topCol), ws.Cells(topRow + 500, topCol + numCols - 1)).ClearContents
+    ws.Range(ws.Cells(topRow + 1, topCol), ws.Cells(topRow + bufferRows, topCol + numCols - 1)).ClearContents
     If rows.Count = 0 Then Exit Sub
     Dim r As Long: r = topRow + 1
     Dim d As Object
     For Each d In rows
+        If r > topRow + bufferRows Then Exit For ' more rows than this section has room for -- stop rather than overflow into the next section
         Dim c As Long
         For c = 0 To UBound(fieldNames)
             ws.Cells(r, topCol + c).Value = d(fieldNames(c))
@@ -347,7 +363,7 @@ Public Sub UI_RunReferralsBySource()
     Dim ws As Worksheet: Set ws = modUtils.DataSheet("Reports")
     Dim rows As Collection: Set rows = ReferralsBySource(CStr(ws.Range("M1").Value), CStr(ws.Range("O1").Value))
     Dim fields(2) As String: fields(0) = "source": fields(1) = "count": fields(2) = "percent"
-    WriteTableRows ws, "A4", 3, rows, fields
+    WriteTableRows ws, "A4", 3, rows, fields, 12 ' rows 5-16 -- next static content is the "First Appointments" label at A17
 
     Dim co As ChartObject: Set co = ws.ChartObjects("chtReferralsBySource")
     If rows.Count = 0 Then
@@ -364,10 +380,10 @@ Public Sub UI_RunFirstAppointments()
     Dim ws As Worksheet: Set ws = modUtils.DataSheet("Reports")
     Dim rows As Collection: Set rows = FirstAppointments(CStr(ws.Range("M1").Value), CStr(ws.Range("O1").Value))
     Dim fields(2) As String: fields(0) = "patient_name": fields(1) = "first_appt_date": fields(2) = "consultant_name"
-    WriteTableRows ws, "A20", 3, rows, fields
+    WriteTableRows ws, "A20", 3, rows, fields, 16 ' rows 21-36 -- next static content is the "Patients Dropped" label at A37
 
     Dim weekRows As Collection: Set weekRows = GroupByWeekLabel(rows, "first_appt_date")
-    WriteWeekHelper ws, "J20", weekRows
+    WriteWeekHelper ws, "J20", weekRows, 16
 
     Dim co As ChartObject: Set co = ws.ChartObjects("chtFirstAppointments")
     If rows.Count = 0 Then
@@ -384,10 +400,10 @@ Public Sub UI_RunPatientsDropped()
     Dim ws As Worksheet: Set ws = modUtils.DataSheet("Reports")
     Dim rows As Collection: Set rows = PatientsDropped(CStr(ws.Range("M1").Value), CStr(ws.Range("O1").Value))
     Dim fields(2) As String: fields(0) = "patient_name": fields(1) = "dropped_date": fields(2) = "changed_by_name"
-    WriteTableRows ws, "A40", 3, rows, fields
+    WriteTableRows ws, "A40", 3, rows, fields, 16 ' rows 41-56 -- next static content is the "SDAT Improvement" label at A57
 
     Dim weekRows As Collection: Set weekRows = GroupByWeekLabel(rows, "dropped_date")
-    WriteWeekHelper ws, "J40", weekRows
+    WriteWeekHelper ws, "J40", weekRows, 16
 
     Dim co As ChartObject: Set co = ws.ChartObjects("chtPatientsDropped")
     If rows.Count = 0 Then
@@ -406,7 +422,7 @@ Public Sub UI_RunSdatImprovement()
     Dim fields(5) As String
     fields(0) = "patient_name": fields(1) = "begin_score": fields(2) = "begin_date"
     fields(3) = "end_score": fields(4) = "end_date": fields(5) = "pct_improvement"
-    WriteTableRows ws, "A60", 6, rows, fields
+    WriteTableRows ws, "A60", 6, rows, fields, 18 ' rows 61-78 -- next static content is "Overall Improvement:" at A79
 
     If rows.Count = 0 Then
         ws.Range("B79").Value = "No results found for this date range."
@@ -451,7 +467,7 @@ End Sub
 Private Sub ClearReferralsBySource()
     Dim ws As Worksheet: Set ws = modUtils.DataSheet("Reports")
     Dim fields(2) As String: fields(0) = "source": fields(1) = "count": fields(2) = "percent"
-    WriteTableRows ws, "A4", 3, New Collection, fields
+    WriteTableRows ws, "A4", 3, New Collection, fields, 12
     ws.ChartObjects("chtReferralsBySource").Visible = False
     ws.Range("E5").Value = "Run the report to see results."
 End Sub
@@ -459,8 +475,8 @@ End Sub
 Private Sub ClearFirstAppointments()
     Dim ws As Worksheet: Set ws = modUtils.DataSheet("Reports")
     Dim fields(2) As String: fields(0) = "patient_name": fields(1) = "first_appt_date": fields(2) = "consultant_name"
-    WriteTableRows ws, "A20", 3, New Collection, fields
-    WriteWeekHelper ws, "J20", New Collection
+    WriteTableRows ws, "A20", 3, New Collection, fields, 16
+    WriteWeekHelper ws, "J20", New Collection, 16
     ws.ChartObjects("chtFirstAppointments").Visible = False
     ws.Range("E21").Value = "Run the report to see results."
 End Sub
@@ -468,8 +484,8 @@ End Sub
 Private Sub ClearPatientsDropped()
     Dim ws As Worksheet: Set ws = modUtils.DataSheet("Reports")
     Dim fields(2) As String: fields(0) = "patient_name": fields(1) = "dropped_date": fields(2) = "changed_by_name"
-    WriteTableRows ws, "A40", 3, New Collection, fields
-    WriteWeekHelper ws, "J40", New Collection
+    WriteTableRows ws, "A40", 3, New Collection, fields, 16
+    WriteWeekHelper ws, "J40", New Collection, 16
     ws.ChartObjects("chtPatientsDropped").Visible = False
     ws.Range("E41").Value = "Run the report to see results."
 End Sub
@@ -479,7 +495,7 @@ Private Sub ClearSdatImprovement()
     Dim fields(5) As String
     fields(0) = "patient_name": fields(1) = "begin_score": fields(2) = "begin_date"
     fields(3) = "end_score": fields(4) = "end_date": fields(5) = "pct_improvement"
-    WriteTableRows ws, "A60", 6, New Collection, fields
+    WriteTableRows ws, "A60", 6, New Collection, fields, 18
     ws.Range("B79").Value = ""
 End Sub
 

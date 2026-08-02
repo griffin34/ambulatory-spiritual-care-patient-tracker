@@ -48,27 +48,27 @@ Public Function GetPatient(patientId As Long) As Object
         Exit Function
     End If
 
-    d("id") = ws.Cells(r, modUtils.ColIndex(ws, "id")).Value
-    d("mrn") = ws.Cells(r, modUtils.ColIndex(ws, "mrn")).Value
-    d("last_name") = ws.Cells(r, modUtils.ColIndex(ws, "last_name")).Value
-    d("first_name") = ws.Cells(r, modUtils.ColIndex(ws, "first_name")).Value
-    d("middle_name") = ws.Cells(r, modUtils.ColIndex(ws, "middle_name")).Value
-    d("phone") = ws.Cells(r, modUtils.ColIndex(ws, "phone")).Value
-    d("date_of_referral") = ws.Cells(r, modUtils.ColIndex(ws, "date_of_referral")).Value
-    d("referral_source_id") = ws.Cells(r, modUtils.ColIndex(ws, "referral_source_id")).Value
-    d("religion_id") = ws.Cells(r, modUtils.ColIndex(ws, "religion_id")).Value
-    d("language_id") = ws.Cells(r, modUtils.ColIndex(ws, "language_id")).Value
-    d("referral_source") = modUtils.LovValueForId(CLng(d("referral_source_id")))
-    d("religion") = modUtils.LovValueForId(CLng(d("religion_id")))
-    d("language") = modUtils.LovValueForId(CLng(d("language_id")))
-    d("current_status") = ws.Cells(r, modUtils.ColIndex(ws, "current_status")).Value
-    d("is_active") = ws.Cells(r, modUtils.ColIndex(ws, "is_active")).Value
-    d("sdat_begin_score") = ws.Cells(r, modUtils.ColIndex(ws, "sdat_begin_score")).Value
-    d("sdat_begin_date") = ws.Cells(r, modUtils.ColIndex(ws, "sdat_begin_date")).Value
-    d("sdat_end_score") = ws.Cells(r, modUtils.ColIndex(ws, "sdat_end_score")).Value
-    d("sdat_end_date") = ws.Cells(r, modUtils.ColIndex(ws, "sdat_end_date")).Value
-    d("sdat_pct_improvement") = ws.Cells(r, modUtils.ColIndex(ws, "sdat_pct_improvement")).Value
-    d("notes") = ws.Cells(r, modUtils.ColIndex(ws, "notes")).Value
+    d("id") = modUtils.GetVal(ws, r, "id")
+    d("mrn") = modUtils.GetVal(ws, r, "mrn")
+    d("last_name") = modUtils.GetVal(ws, r, "last_name")
+    d("first_name") = modUtils.GetVal(ws, r, "first_name")
+    d("middle_name") = modUtils.GetVal(ws, r, "middle_name")
+    d("phone") = modUtils.GetVal(ws, r, "phone")
+    d("date_of_referral") = modUtils.GetVal(ws, r, "date_of_referral")
+    d("referral_source_id") = modUtils.GetVal(ws, r, "referral_source_id")
+    d("religion_id") = modUtils.GetVal(ws, r, "religion_id")
+    d("language_id") = modUtils.GetVal(ws, r, "language_id")
+    d("referral_source") = modUtils.LovValueForId(modUtils.SafeCLng(d("referral_source_id")))
+    d("religion") = modUtils.LovValueForId(modUtils.SafeCLng(d("religion_id")))
+    d("language") = modUtils.LovValueForId(modUtils.SafeCLng(d("language_id")))
+    d("current_status") = modUtils.GetVal(ws, r, "current_status")
+    d("is_active") = modUtils.GetVal(ws, r, "is_active")
+    d("sdat_begin_score") = modUtils.GetVal(ws, r, "sdat_begin_score")
+    d("sdat_begin_date") = modUtils.GetVal(ws, r, "sdat_begin_date")
+    d("sdat_end_score") = modUtils.GetVal(ws, r, "sdat_end_score")
+    d("sdat_end_date") = modUtils.GetVal(ws, r, "sdat_end_date")
+    d("sdat_pct_improvement") = modUtils.GetVal(ws, r, "sdat_pct_improvement")
+    d("notes") = modUtils.GetVal(ws, r, "notes")
     Set GetPatient = d
 End Function
 
@@ -244,25 +244,25 @@ Public Sub Save(patientId As Long, mrn As String, lastName As String, firstName 
     If patientId = 0 Then
         r = modUtils.LastDataRow(ws) + 1
         newId = modUtils.NextId(ws)
-        ws.Cells(r, modUtils.ColIndex(ws, "id")).Value = newId
-        ws.Cells(r, modUtils.ColIndex(ws, "current_status")).Value = "ready_to_schedule"
-        ws.Cells(r, modUtils.ColIndex(ws, "is_active")).Value = 1
-        ws.Cells(r, modUtils.ColIndex(ws, "created_at")).Value = modUtils.NowISO()
+        modUtils.SetVal ws, r, "id", newId
+        modUtils.SetVal ws, r, "current_status", "ready_to_schedule"
+        modUtils.SetVal ws, r, "is_active", 1
+        modUtils.SetVal ws, r, "created_at", modUtils.NowISO()
     Else
         r = modUtils.FindById(ws, patientId)
         If r = 0 Then Exit Sub
         newId = patientId
     End If
 
-    ws.Cells(r, modUtils.ColIndex(ws, "mrn")).Value = mrn
-    ws.Cells(r, modUtils.ColIndex(ws, "last_name")).Value = lastName
-    ws.Cells(r, modUtils.ColIndex(ws, "first_name")).Value = firstName
-    ws.Cells(r, modUtils.ColIndex(ws, "middle_name")).Value = middleName
-    ws.Cells(r, modUtils.ColIndex(ws, "phone")).Value = phone
-    ws.Cells(r, modUtils.ColIndex(ws, "date_of_referral")).Value = referralDate
-    ws.Cells(r, modUtils.ColIndex(ws, "referral_source_id")).Value = referralSourceId
-    ws.Cells(r, modUtils.ColIndex(ws, "religion_id")).Value = religionId
-    ws.Cells(r, modUtils.ColIndex(ws, "language_id")).Value = languageId
+    modUtils.SetVal ws, r, "mrn", mrn
+    modUtils.SetVal ws, r, "last_name", lastName
+    modUtils.SetVal ws, r, "first_name", firstName
+    modUtils.SetVal ws, r, "middle_name", middleName
+    modUtils.SetVal ws, r, "phone", phone
+    modUtils.SetVal ws, r, "date_of_referral", referralDate
+    modUtils.SetVal ws, r, "referral_source_id", referralSourceId
+    modUtils.SetVal ws, r, "religion_id", religionId
+    modUtils.SetVal ws, r, "language_id", languageId
 
     If patientId = 0 Then
         AppendStatusHistory newId, "ready_to_schedule"
@@ -273,20 +273,20 @@ End Sub
 Private Sub AppendStatusHistory(patientId As Long, status As String)
     Dim ws As Worksheet: Set ws = modUtils.DataSheet("_data_status_history")
     Dim r As Long: r = modUtils.LastDataRow(ws) + 1
-    ws.Cells(r, 1).Value = modUtils.NextId(ws)
-    ws.Cells(r, modUtils.ColIndex(ws, "patient_id")).Value = patientId
-    ws.Cells(r, modUtils.ColIndex(ws, "status")).Value = status
-    ws.Cells(r, modUtils.ColIndex(ws, "changed_by")).Value = modAuth.gUserId
-    ws.Cells(r, modUtils.ColIndex(ws, "changed_at")).Value = modUtils.NowISO()
+    modUtils.SetVal ws, r, "id", modUtils.NextId(ws)
+    modUtils.SetVal ws, r, "patient_id", patientId
+    modUtils.SetVal ws, r, "status", status
+    modUtils.SetVal ws, r, "changed_by", modAuth.gUserId
+    modUtils.SetVal ws, r, "changed_at", modUtils.NowISO()
 End Sub
 
 Public Sub ChangeStatus(patientId As Long, newStatus As String)
     Dim ws As Worksheet: Set ws = modUtils.DataSheet("_data_patients")
     Dim r As Long: r = modUtils.FindById(ws, patientId)
     If r = 0 Then Exit Sub
-    ws.Cells(r, modUtils.ColIndex(ws, "current_status")).Value = newStatus
+    modUtils.SetVal ws, r, "current_status", newStatus
     If newStatus = "deleted" Then
-        ws.Cells(r, modUtils.ColIndex(ws, "is_active")).Value = 0
+        modUtils.SetVal ws, r, "is_active", 0
     End If
     AppendStatusHistory patientId, newStatus
     modUtils.AutoSave
@@ -300,7 +300,7 @@ Public Sub Restore(patientId As Long)
     Dim ws As Worksheet: Set ws = modUtils.DataSheet("_data_patients")
     Dim r As Long: r = modUtils.FindById(ws, patientId)
     If r = 0 Then Exit Sub
-    ws.Cells(r, modUtils.ColIndex(ws, "is_active")).Value = 1
+    modUtils.SetVal ws, r, "is_active", 1
     ChangeStatus patientId, "on_hold"
 End Sub
 
@@ -311,11 +311,11 @@ Public Sub SaveSdat(patientId As Long, beginScore As Variant, beginDate As Strin
     Dim ws As Worksheet: Set ws = modUtils.DataSheet("_data_patients")
     Dim r As Long: r = modUtils.FindById(ws, patientId)
     If r = 0 Then Exit Sub
-    ws.Cells(r, modUtils.ColIndex(ws, "sdat_begin_score")).Value = beginScore
-    ws.Cells(r, modUtils.ColIndex(ws, "sdat_begin_date")).Value = beginDate
-    ws.Cells(r, modUtils.ColIndex(ws, "sdat_end_score")).Value = endScore
-    ws.Cells(r, modUtils.ColIndex(ws, "sdat_end_date")).Value = endDate
-    ws.Cells(r, modUtils.ColIndex(ws, "sdat_pct_improvement")).Value = ComputeSdatPct(beginScore, endScore)
+    modUtils.SetVal ws, r, "sdat_begin_score", beginScore
+    modUtils.SetVal ws, r, "sdat_begin_date", beginDate
+    modUtils.SetVal ws, r, "sdat_end_score", endScore
+    modUtils.SetVal ws, r, "sdat_end_date", endDate
+    modUtils.SetVal ws, r, "sdat_pct_improvement", ComputeSdatPct(beginScore, endScore)
     modUtils.AutoSave
 End Sub
 
@@ -338,7 +338,7 @@ Public Sub SaveNotes(patientId As Long, notes As String)
     Dim r As Long: r = modUtils.FindById(ws, patientId)
     If r = 0 Then Exit Sub
     If Len(notes) > 256 Then notes = Left(notes, 256)
-    ws.Cells(r, modUtils.ColIndex(ws, "notes")).Value = notes
+    modUtils.SetVal ws, r, "notes", notes
     modUtils.AutoSave
 End Sub
 

@@ -141,43 +141,80 @@ Public Sub ArchiveAndPurge(staleIds As Collection, archivePath As String)
         staleSet(CLng(sid)) = True
     Next sid
 
-    ' Archive + hard-delete bottom-to-top so row indices don't shift under us.
+    ' Copy stale rows into the archive workbook first -- nothing is removed
+    ' from the live sheets yet. Row numbers to delete are collected (not
+    ' deleted inline) so the actual hard-delete can happen only AFTER the
+    ' archive is durably saved below; a failed SaveAs must never leave live
+    ' data deleted with no backup on disk. Collected top-to-bottom in
+    ' descending row order (LastDataRow down to 2) so deleting them later in
+    ' that same order never shifts an as-yet-undeleted row's index.
     Dim r As Long
+    Dim patientRowsToDelete As New Collection
     Dim pDestRow As Long: pDestRow = 2
     For r = modUtils.LastDataRow(patientsWs) To 2 Step -1
         If staleSet.Exists(CLng(patientsWs.Cells(r, 1).Value)) Then
             CopyRow patientsWs, r, pSheet, pDestRow
             pDestRow = pDestRow + 1
-            modUtils.DeleteRow patientsWs, r
+            patientRowsToDelete.Add r
         End If
     Next r
 
+    Dim apptRowsToDelete As New Collection
     Dim aDestRow As Long: aDestRow = 2
     Dim cApptPid As Long: cApptPid = modUtils.ColIndex(apptWs, "patient_id")
     For r = modUtils.LastDataRow(apptWs) To 2 Step -1
         If staleSet.Exists(CLng(apptWs.Cells(r, cApptPid).Value)) Then
             CopyRow apptWs, r, aSheet, aDestRow
             aDestRow = aDestRow + 1
-            modUtils.DeleteRow apptWs, r
+            apptRowsToDelete.Add r
         End If
     Next r
 
+    Dim histRowsToDelete As New Collection
     Dim hDestRow As Long: hDestRow = 2
     Dim cHistPid As Long: cHistPid = modUtils.ColIndex(histWs, "patient_id")
     For r = modUtils.LastDataRow(histWs) To 2 Step -1
         If staleSet.Exists(CLng(histWs.Cells(r, cHistPid).Value)) Then
             CopyRow histWs, r, hSheet, hDestRow
             hDestRow = hDestRow + 1
-            modUtils.DeleteRow histWs, r
+            histRowsToDelete.Add r
         End If
     Next r
 
+    ' Nothing has been removed from the live sheets yet -- if the archive
+    ' can't be durably saved (locked path, disk full, invalid location), abort
+    ' here with the live data fully intact instead of losing it.
+    On Error GoTo SaveFail
     archiveWb.SaveAs archivePath, FileFormat:=51 ' xlOpenXMLWorkbook
     archiveWb.Close SaveChanges:=False
+    On Error GoTo 0
+    Set archiveWb = Nothing
+
+    ' The archive is safely on disk -- only now is it safe to hard-delete the
+    ' live rows.
+    Dim rowNum As Variant
+    For Each rowNum In patientRowsToDelete
+        modUtils.DeleteRow patientsWs, CLng(rowNum)
+    Next rowNum
+    For Each rowNum In apptRowsToDelete
+        modUtils.DeleteRow apptWs, CLng(rowNum)
+    Next rowNum
+    For Each rowNum In histRowsToDelete
+        modUtils.DeleteRow histWs, CLng(rowNum)
+    Next rowNum
 
     modUtils.SetSetting "last_purge_date", modUtils.DateISO(Date)
     RefreshPurgeConfigDisplay
     modUtils.AutoSave
+    Exit Sub
+
+SaveFail:
+    Dim errDesc As String: errDesc = Err.Description
+    On Error Resume Next
+    archiveWb.Close SaveChanges:=False
+    On Error GoTo 0
+    MsgBox "Could not save the purge archive to '" & archivePath & "': " & errDesc & _
+        vbCrLf & vbCrLf & "No records were deleted.", vbCritical, "Purge Failed"
 End Sub
 
 Private Sub CopyHeaderRow(srcWs As Worksheet, destWs As Worksheet)

@@ -77,6 +77,10 @@ Private Sub btnSave_Click()
         ShowError "Date must be YYYY-MM-DD."
         Exit Sub
     End If
+    If Trim(txtTime.Text) = "" Then
+        ShowError "Time is required."
+        Exit Sub
+    End If
     If Not modUtils.IsValidTime(Trim(txtTime.Text)) Then
         ShowError "Time must be HH:MM (24-hour)."
         Exit Sub

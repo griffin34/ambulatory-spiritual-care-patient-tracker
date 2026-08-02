@@ -123,6 +123,13 @@ Public Function IsBlank(v As Variant) As Boolean
     End If
 End Function
 
+' Converts a Variant to a Long, treating Null (e.g. from GetVal on a missing
+' column) or a blank string as 0 instead of raising a type-mismatch error.
+Public Function SafeCLng(v As Variant) As Long
+    If IsNull(v) Or Trim(v & "") = "" Then Exit Function
+    SafeCLng = CLng(v)
+End Function
+
 ' Returns a setting value from _data_settings by key.
 ' Returns "" if the key is not found.
 Public Function GetSetting(key As String) As String

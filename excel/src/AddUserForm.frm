@@ -41,9 +41,15 @@ Private Sub btnSave_Click()
         ShowError "Passwords must match and cannot be blank."
         Exit Sub
     End If
-    modAdmin.CreateUser Trim(txtName.Text), Trim(txtEmail.Text), Trim(txtEmailReal.Text), txtPassword.Text, cboRole.value
+    If Not modAdmin.CreateUser(Trim(txtName.Text), Trim(txtEmail.Text), Trim(txtEmailReal.Text), txtPassword.Text, cboRole.value) Then
+        ShowError "That username is already taken."
+        Exit Sub
+    End If
     If FirstRunMode Then
-        modAuth.ValidateLogin Trim(txtEmail.Text), txtPassword.Text
+        If Not modAuth.ValidateLogin(Trim(txtEmail.Text), txtPassword.Text) Then
+            ShowError "Account created, but sign-in failed -- please close this dialog and sign in from the login screen."
+            Exit Sub
+        End If
         Dim ws As Worksheet
         For Each ws In ThisWorkbook.Sheets
             If Left(ws.name, 5) <> "_data" Then

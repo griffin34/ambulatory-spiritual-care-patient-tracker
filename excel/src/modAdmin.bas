@@ -3,22 +3,48 @@ Option Explicit
 
 ' Creates a new user account with a hashed password and appends it to _data_users.
 ' username is the sign-in credential (modAuth.ValidateLogin); email is informational only.
-Public Sub CreateUser(name As String, username As String, email As String, password As String, role As String)
+' Returns False (no row added) if username collides case-insensitively with an
+' existing user -- mirrors SetUsername's uniqueness guarantee, since a
+' duplicate username would make one of the two accounts' login ambiguous.
+Public Function CreateUser(name As String, username As String, email As String, password As String, role As String) As Boolean
     Dim ws As Worksheet
     Set ws = modUtils.DataSheet("_data_users")
+    If UsernameTaken(ws, username, 0) Then Exit Function
+
     Dim newRow As Long
     newRow = modUtils.LastDataRow(ws) + 1
 
     ws.Cells(newRow, 1).Value = modUtils.NextId(ws)
     ws.Cells(newRow, 2).Value = name
-    ws.Cells(newRow, 3).Value = username
+    ws.Cells(newRow, 3).Value = Trim(username)
     ws.Cells(newRow, 4).Value = email
     ws.Cells(newRow, 5).Value = modAuth.HashPassword(password)
     ws.Cells(newRow, 6).Value = role
     ws.Cells(newRow, 7).Value = 1
     ws.Cells(newRow, 8).Value = modUtils.NowISO()
     modUtils.AutoSave
-End Sub
+    CreateUser = True
+End Function
+
+' True if another row in _data_users already has this username (case-
+' insensitive), excluding excludeUserId (pass 0 when checking a brand-new
+' user, since no existing row can equal that). Shared by CreateUser and
+' SetUsername so the uniqueness rule only lives in one place.
+Private Function UsernameTaken(ws As Worksheet, username As String, excludeUserId As Long) As Boolean
+    Dim trimmed As String: trimmed = Trim(username)
+    If trimmed = "" Then Exit Function
+
+    Dim cUsername As Long: cUsername = modUtils.ColIndex(ws, "username")
+    Dim last As Long: last = modUtils.LastDataRow(ws)
+    Dim i As Long
+    For i = 2 To last
+        If ws.Cells(i, 1).Value <> excludeUserId And _
+           LCase(CStr(ws.Cells(i, cUsername).Value)) = LCase(trimmed) Then
+            UsernameTaken = True
+            Exit Function
+        End If
+    Next i
+End Function
 
 ' Returns a user's display name, or "" if not found / userId<=0.
 Public Function GetUserName(userId As Long) As String
@@ -75,22 +101,13 @@ End Sub
 ' would make one of the two accounts unreachable.
 Public Function SetUsername(userId As Long, newUsername As String) As Boolean
     Dim ws As Worksheet: Set ws = modUtils.DataSheet("_data_users")
-    Dim cUsername As Long: cUsername = modUtils.ColIndex(ws, "username")
     Dim trimmed As String: trimmed = Trim(newUsername)
     If trimmed = "" Then Exit Function
-
-    Dim last As Long: last = modUtils.LastDataRow(ws)
-    Dim i As Long
-    For i = 2 To last
-        If ws.Cells(i, 1).Value <> userId And _
-           LCase(CStr(ws.Cells(i, cUsername).Value)) = LCase(trimmed) Then
-            Exit Function
-        End If
-    Next i
+    If UsernameTaken(ws, trimmed, userId) Then Exit Function
 
     Dim r As Long: r = modUtils.FindById(ws, userId)
     If r = 0 Then Exit Function
-    ws.Cells(r, cUsername).Value = trimmed
+    ws.Cells(r, modUtils.ColIndex(ws, "username")).Value = trimmed
     modUtils.AutoSave
     SetUsername = True
 End Function
@@ -369,6 +386,13 @@ Public Sub RefreshLovTable()
         Exit Sub
     End If
 
+    ' On error, both EnableEvents and the sheet's protection must still be
+    ' restored -- an unhandled error here previously left EnableEvents stuck
+    ' False app-wide AND (found while fixing that) left the Admin sheet
+    ' permanently unprotected even on the success path, since this Sub had no
+    ' matching modUtils.ReprotectAfterRefresh call after the populated case
+    ' (only the "no category selected" early-exit above had one).
+    On Error GoTo Fail
     Application.EnableEvents = False
     Dim r As Long: r = 1
     If category = "consultants" Then
@@ -397,6 +421,13 @@ Public Sub RefreshLovTable()
         Next d
     End If
     Application.EnableEvents = True
+    modUtils.ReprotectAfterRefresh ws
+    Exit Sub
+
+Fail:
+    Application.EnableEvents = True
+    modUtils.ReprotectAfterRefresh ws
+    MsgBox "Error refreshing list of values: " & Err.Description, vbExclamation
 End Sub
 
 Private Function SelectedIdInTable(tableName As String) As Long

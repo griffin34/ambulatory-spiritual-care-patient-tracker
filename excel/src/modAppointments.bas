@@ -11,17 +11,17 @@ Public Function GetAppointment(appointmentId As Long) As Object
         Exit Function
     End If
 
-    d("id") = ws.Cells(r, modUtils.ColIndex(ws, "id")).Value
-    d("patient_id") = ws.Cells(r, modUtils.ColIndex(ws, "patient_id")).Value
-    d("date") = ws.Cells(r, modUtils.ColIndex(ws, "date")).Value
-    d("time") = ws.Cells(r, modUtils.ColIndex(ws, "time")).Value
-    d("type_id") = ws.Cells(r, modUtils.ColIndex(ws, "type_id")).Value
-    d("consultant_id") = ws.Cells(r, modUtils.ColIndex(ws, "consultant_id")).Value
-    d("type") = modUtils.LovValueForId(CLng(d("type_id")))
-    d("consultant_name") = ConsultantNameForId(CLng(d("consultant_id")))
-    d("is_last_appointment") = ws.Cells(r, modUtils.ColIndex(ws, "is_last_appointment")).Value
-    d("status") = ws.Cells(r, modUtils.ColIndex(ws, "status")).Value
-    d("notes") = ws.Cells(r, modUtils.ColIndex(ws, "notes")).Value
+    d("id") = modUtils.GetVal(ws, r, "id")
+    d("patient_id") = modUtils.GetVal(ws, r, "patient_id")
+    d("date") = modUtils.GetVal(ws, r, "date")
+    d("time") = modUtils.GetVal(ws, r, "time")
+    d("type_id") = modUtils.GetVal(ws, r, "type_id")
+    d("consultant_id") = modUtils.GetVal(ws, r, "consultant_id")
+    d("type") = modUtils.LovValueForId(modUtils.SafeCLng(d("type_id")))
+    d("consultant_name") = ConsultantNameForId(modUtils.SafeCLng(d("consultant_id")))
+    d("is_last_appointment") = modUtils.GetVal(ws, r, "is_last_appointment")
+    d("status") = modUtils.GetVal(ws, r, "status")
+    d("notes") = modUtils.GetVal(ws, r, "notes")
     Set GetAppointment = d
 End Function
 
@@ -170,7 +170,7 @@ Private Function ConsultantNameForId(consultantId As Long) As String
     Dim ws As Worksheet: Set ws = modUtils.DataSheet("_data_consultants")
     Dim r As Long: r = modUtils.FindById(ws, consultantId)
     If r = 0 Then Exit Function
-    ConsultantNameForId = CStr(ws.Cells(r, modUtils.ColIndex(ws, "name")).Value)
+    ConsultantNameForId = CStr(modUtils.GetVal(ws, r, "name"))
 End Function
 
 ' Fills a ComboBox with active consultant names.
@@ -210,21 +210,21 @@ Public Sub Save(appointmentId As Long, patientId As Long, apptDate As String, ap
 
     If appointmentId = 0 Then
         r = modUtils.LastDataRow(ws) + 1
-        ws.Cells(r, modUtils.ColIndex(ws, "id")).Value = modUtils.NextId(ws)
-        ws.Cells(r, modUtils.ColIndex(ws, "created_at")).Value = modUtils.NowISO()
+        modUtils.SetVal ws, r, "id", modUtils.NextId(ws)
+        modUtils.SetVal ws, r, "created_at", modUtils.NowISO()
     Else
         r = modUtils.FindById(ws, appointmentId)
         If r = 0 Then Exit Sub
     End If
 
-    ws.Cells(r, modUtils.ColIndex(ws, "patient_id")).Value = patientId
-    ws.Cells(r, modUtils.ColIndex(ws, "date")).Value = apptDate
-    ws.Cells(r, modUtils.ColIndex(ws, "time")).Value = apptTime
-    ws.Cells(r, modUtils.ColIndex(ws, "type_id")).Value = typeId
-    ws.Cells(r, modUtils.ColIndex(ws, "consultant_id")).Value = consultantId
-    ws.Cells(r, modUtils.ColIndex(ws, "is_last_appointment")).Value = IIf(isLast, 1, 0)
-    ws.Cells(r, modUtils.ColIndex(ws, "status")).Value = status
-    ws.Cells(r, modUtils.ColIndex(ws, "notes")).Value = notes
+    modUtils.SetVal ws, r, "patient_id", patientId
+    modUtils.SetVal ws, r, "date", apptDate
+    modUtils.SetVal ws, r, "time", apptTime
+    modUtils.SetVal ws, r, "type_id", typeId
+    modUtils.SetVal ws, r, "consultant_id", consultantId
+    modUtils.SetVal ws, r, "is_last_appointment", IIf(isLast, 1, 0)
+    modUtils.SetVal ws, r, "status", status
+    modUtils.SetVal ws, r, "notes", notes
     modUtils.AutoSave
 End Sub
 
@@ -239,6 +239,10 @@ Public Sub UI_OpenAddAppointment()
     If query = "" Then Exit Sub
 
     Dim pid As Long: pid = FindActivePatientIdByMrnOrLastName(query)
+    If pid = -1 Then
+        MsgBox "More than one active patient matches that last name -- enter the patient's MRN instead to pick the right one.", vbExclamation
+        Exit Sub
+    End If
     If pid = 0 Then
         MsgBox "No matching active patient found.", vbExclamation
         Exit Sub
@@ -250,6 +254,10 @@ Public Sub UI_OpenAddAppointment()
     RefreshAppointments
 End Sub
 
+' Returns the matching active patient's id, 0 if none found, or -1 if the
+' query matched more than one active patient by last name (ambiguous -- an
+' exact MRN match is checked first and always wins immediately, since MRN is
+' meant to be unique, so it can never itself be the ambiguous case).
 Private Function FindActivePatientIdByMrnOrLastName(query As String) As Long
     Dim ws As Worksheet: Set ws = modUtils.DataSheet("_data_patients")
     Dim last As Long: last = modUtils.LastDataRow(ws)
@@ -257,16 +265,31 @@ Private Function FindActivePatientIdByMrnOrLastName(query As String) As Long
     Dim cLast As Long: cLast = modUtils.ColIndex(ws, "last_name")
     Dim cActive As Long: cActive = modUtils.ColIndex(ws, "is_active")
     Dim q As String: q = LCase(query)
+
+    Dim lastNameMatchId As Long: lastNameMatchId = 0
+    Dim lastNameMatchCount As Long: lastNameMatchCount = 0
+
     Dim i As Long
     For i = 2 To last
         If ws.Cells(i, cActive).Value = 1 Then
-            If LCase(CStr(ws.Cells(i, cMrn).Value)) = q Or LCase(CStr(ws.Cells(i, cLast).Value)) = q Then
+            If LCase(CStr(ws.Cells(i, cMrn).Value)) = q Then
                 FindActivePatientIdByMrnOrLastName = ws.Cells(i, 1).Value
                 Exit Function
             End If
+            If LCase(CStr(ws.Cells(i, cLast).Value)) = q Then
+                lastNameMatchCount = lastNameMatchCount + 1
+                lastNameMatchId = ws.Cells(i, 1).Value
+            End If
         End If
     Next i
-    FindActivePatientIdByMrnOrLastName = 0
+
+    If lastNameMatchCount = 1 Then
+        FindActivePatientIdByMrnOrLastName = lastNameMatchId
+    ElseIf lastNameMatchCount > 1 Then
+        FindActivePatientIdByMrnOrLastName = -1
+    Else
+        FindActivePatientIdByMrnOrLastName = 0
+    End If
 End Function
 
 Public Sub UI_ExportDay()
