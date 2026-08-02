@@ -3,6 +3,14 @@ import datetime
 import os
 import sys
 
+# Bumped whenever SHEET_HEADERS or seed data structure changes. Drives the
+# default output filename (AmbulatoryPatients-v{N}.xlsm) so a new build never
+# collides with a coordinator's existing file on disk, and is recorded into
+# _data_settings (see SEED_SETTINGS) so it's discoverable from inside the file
+# too. Not load-bearing for modUpgrade's in-app import -- that merges by
+# column name and self-migrates regardless of what version a file claims.
+EXCEL_BUILD_VERSION = 1
+
 # ─── Sheet definitions ────────────────────────────────────────────────────────
 
 DATA_SHEETS = [
@@ -87,6 +95,7 @@ SEED_SETTINGS = [
     ('retention_months', '12'),
     ('purge_frequency', 'quarterly'),
     ('last_purge_date', ''),
+    ('excel_build_version', str(EXCEL_BUILD_VERSION)),
 ]
 
 # Default consultants: (name, is_chaplain, is_active)
@@ -95,6 +104,12 @@ SEED_CONSULTANTS = [
 ]
 
 # ─── Build (requires Excel for Mac or Windows + xlwings) ─────────────────────
+
+def _default_output_path():
+    """Pure (no xlwings/COM) so tests can check the versioned filename directly."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(here, 'dist', f'AmbulatoryPatients-v{EXCEL_BUILD_VERSION}.xlsm')
+
 
 def build_workbook(output_path=None, src_dir=None):
     """Create AmbulatoryPatients.xlsm via xlwings (Mac or Windows).
@@ -109,7 +124,7 @@ def build_workbook(output_path=None, src_dir=None):
 
     here = os.path.dirname(os.path.abspath(__file__))
     if output_path is None:
-        output_path = os.path.join(here, 'dist', 'AmbulatoryPatients.xlsm')
+        output_path = _default_output_path()
     if src_dir is None:
         src_dir = os.path.join(here, 'src')
 
@@ -124,11 +139,25 @@ def build_workbook(output_path=None, src_dir=None):
     try:
         app = xw.App(visible=False)
         app.display_alerts = False
+        # Once VBA is imported and the sheet code-behind is wired (below), this
+        # function's own cell writes (e.g. _build_admin_sheet's default
+        # category dropdown value) would otherwise fire real Worksheet_Change
+        # handlers mid-build -- e.g. Admin.cls's handler calls
+        # modAdmin.RefreshLovTable, which looks up the tblLov ListObject before
+        # this function has created it yet, throwing a blocking native
+        # "Run-time error 9: Subscript out of range" dialog. No VBA business
+        # logic should run while build.py is just constructing structure.
+        app.api.EnableEvents = False
         wb = app.books.add()
         _setup_sheets(wb)
         _write_headers(wb)
-        _seed_data(wb)
+        # Text-format date/timestamp columns (and _data_settings' value column)
+        # BEFORE seeding any values into them -- otherwise a numeric-looking
+        # seed string (e.g. SEED_SETTINGS' '12'/'1') gets silently coerced into
+        # a real number under the default General format at write time, same
+        # failure mode _format_date_columns_as_text exists to prevent for dates.
         _format_date_columns_as_text(wb)
+        _seed_data(wb)
         _import_vba(wb, src_dir)
         for filename, component_name in _SHEET_CODE_FILES.items():
             _configure_sheet_code(wb, component_name, filename, src_dir)
@@ -538,11 +567,13 @@ def _build_admin_sheet(wb):
     ws.range('B:B').api.ColumnWidth = 17  # ~100pt, fits '+ Add User' (90pt)
     ws.range('C:C').api.ColumnWidth = 15  # ~89pt, fits 'Reset PW' (80pt)
     ws.range('D:D').api.ColumnWidth = 15  # ~89pt, fits 'Deactivate' (80pt)
-    # E/F are the tblUsers Role/Active data columns -- not a button column, but
-    # left at the 48pt default 'coordinator' (11 chars) and 'Inactive'
-    # (8 chars) both clip.
+    # E is the tblUsers Role data column -- not a button column, but left at
+    # the 48pt default 'coordinator' (11 chars) clips.
     ws.range('E:E').api.ColumnWidth = 15  # ~89pt, fits 'coordinator'
-    ws.range('F:F').api.ColumnWidth = 12  # ~71pt, fits 'Inactive'
+    # F holds both the tblUsers Active data column below AND the 'Edit
+    # Username' button in row 2 -- widened for the button (110pt), well past
+    # what 'Inactive' (8 chars) alone would need.
+    ws.range('F:F').api.ColumnWidth = 20  # ~118pt, fits 'Edit Username' button (110pt)
     # I is the category dropdown's own value cell -- longest option is
     # 'Appointment Types' (18 chars). Left at the 48pt default, that text
     # overflowed into J (blank cell, no value) and got visually covered by
@@ -559,6 +590,7 @@ def _build_admin_sheet(wb):
     _add_button(ws, 'C2', 'Reset PW', 'modAdmin.UI_ResetSelectedUserPassword', width=80)
     _add_button(ws, 'D2', 'Deactivate', 'modAdmin.UI_DeactivateSelectedUser', width=80)
     _add_button(ws, 'E2', 'Activate', 'modAdmin.UI_ActivateSelectedUser', width=80)
+    _add_button(ws, 'F2', 'Edit Username', 'modAdmin.UI_EditSelectedUsername', width=110)
 
     user_headers = ['ID', 'Name', 'Username', 'Email', 'Role', 'Active']
     ws.range('A4').value = user_headers
@@ -614,11 +646,13 @@ def _build_admin_sheet(wb):
     ws.range('C27').api.NumberFormat = '@'
     _add_button(ws, 'F27', 'Run Purge Now', 'modPurge.RunPurgeNow', width=100)
 
-    # -- Migration (admin only -- enforced at runtime in modExport's UI_* subs) --
+    # -- Migration (admin only -- enforced at runtime in modExport's/modUpgrade's UI_* subs) --
     ws.range('B29').value = 'Migration'
     ws.range('B29').font.bold = True
     _add_button(ws, 'B30', 'Export for Import', 'modExport.UI_ExportForImport', width=130)
     _add_button(ws, 'D30', 'Import from Electron Export', 'modExport.UI_ImportFromElectron', width=170)
+    ws.range('30:30').api.RowHeight = 22  # buttons are 20pt tall -- default row height (~15pt) let them overhang into row 31, now occupied by the button below
+    _add_button(ws, 'B31', 'Import from Previous Excel File', 'modUpgrade.UI_UpgradeFromOldWorkbook', width=170)
 
     # tblLov's Value/Sort Order/Chaplain columns are deliberately left locked
     # (read-only) -- editing now goes through AddEditLovForm (Edit button),

@@ -91,7 +91,8 @@ Don't set Font on a control unless its row says to.
    print `Imported: <FormName>.frm` with no errors, and the resulting
    `.xlsm` should open without a compile-error dialog.
 9. **Commit** `excel/src/<FormName>.frm`, `excel/src/<FormName>.frx`, and the
-   rebuilt `excel/dist/AmbulatoryPatients.xlsm` together.
+   rebuilt `excel/dist/AmbulatoryPatients-v<N>.xlsm` (filename carries
+   `EXCEL_BUILD_VERSION` from `build.py`) together.
 
 Module-level variables mentioned per form (e.g. `PatientId`) are how the
 caller passes context into the form before calling `.Show` — e.g.

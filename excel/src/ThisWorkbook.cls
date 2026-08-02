@@ -40,8 +40,21 @@ Private Sub Workbook_Open()
     Dim usersWs As Worksheet
     Set usersWs = modUtils.DataSheet("_data_users")
     If modUtils.LastDataRow(usersWs) < 2 Then
-        AddUserForm.FirstRunMode = True
-        AddUserForm.Show
+        ' First run: offer to bring data over from an existing Ambulatory
+        ' Patients file instead of always forcing brand-new admin setup.
+        ' Falls back to normal admin creation if the picker is cancelled or
+        ' the chosen file turns out to have no users either -- never a dead end.
+        If MsgBox("No users found yet." & vbCrLf & vbCrLf & _
+            "Import data from an existing Ambulatory Patients file?", _
+            vbYesNo + vbQuestion, "First-Time Setup") = vbYes Then
+            modUpgrade.UI_UpgradeFromOldWorkbook
+        End If
+        If modUtils.LastDataRow(usersWs) < 2 Then
+            AddUserForm.FirstRunMode = True
+            AddUserForm.Show
+        Else
+            LoginForm.Show
+        End If
         Exit Sub
     End If
 

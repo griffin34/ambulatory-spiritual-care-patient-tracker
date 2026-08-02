@@ -5,9 +5,12 @@ description: Drive the built AmbulatoryPatients.xlsm end-to-end via COM to obser
 
 # Verifying the Excel/VBA add-in
 
-Build first: `cd excel && python build.py` (packages `src/*.bas`/`*.frm` into `dist/AmbulatoryPatients.xlsm`).
+Build first: `cd excel && python build.py` (packages `src/*.bas`/`*.frm` into
+`dist/AmbulatoryPatients-v<N>.xlsm`, where `<N>` is `build.py`'s `EXCEL_BUILD_VERSION`).
 
-**Always test on a copy** (e.g. in the scratchpad dir), never the tracked `dist/AmbulatoryPatients.xlsm` — the test flow creates users, logs in, and toggles sheet visibility, and that state must not end up as the shipped artifact.
+**Always test on a copy** (e.g. in the scratchpad dir), never the tracked
+`dist/AmbulatoryPatients-v<N>.xlsm` — the test flow creates users, logs in, and toggles sheet
+visibility, and that state must not end up as the shipped artifact.
 
 ## Driving it: pure COM, no UI automation
 

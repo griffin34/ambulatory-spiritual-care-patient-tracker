@@ -69,6 +69,32 @@ Public Sub ResetPassword(userId As Long, newPassword As String)
     modUtils.AutoSave
 End Sub
 
+' Renames a user's sign-in username. Returns False (no change made) if another
+' active or inactive row already uses that username (case-insensitive) --
+' username is the sole login credential (modAuth.ValidateLogin), so collisions
+' would make one of the two accounts unreachable.
+Public Function SetUsername(userId As Long, newUsername As String) As Boolean
+    Dim ws As Worksheet: Set ws = modUtils.DataSheet("_data_users")
+    Dim cUsername As Long: cUsername = modUtils.ColIndex(ws, "username")
+    Dim trimmed As String: trimmed = Trim(newUsername)
+    If trimmed = "" Then Exit Function
+
+    Dim last As Long: last = modUtils.LastDataRow(ws)
+    Dim i As Long
+    For i = 2 To last
+        If ws.Cells(i, 1).Value <> userId And _
+           LCase(CStr(ws.Cells(i, cUsername).Value)) = LCase(trimmed) Then
+            Exit Function
+        End If
+    Next i
+
+    Dim r As Long: r = modUtils.FindById(ws, userId)
+    If r = 0 Then Exit Function
+    ws.Cells(r, cUsername).Value = trimmed
+    modUtils.AutoSave
+    SetUsername = True
+End Function
+
 ' ── List of Values management ──────────────────────────────────────────────
 ' Unlike the Electron app's listLovs (active rows only), Admin needs inactive
 ' rows too so they can be Restored -- same precedent as PatientDetailForm's
@@ -398,6 +424,30 @@ Public Sub UI_ResetSelectedUserPassword()
     End If
     ResetPasswordForm.UserId = userId
     ResetPasswordForm.Show
+End Sub
+
+Public Sub UI_EditSelectedUsername()
+    If Not modAuth.IsAdmin() Then MsgBox "Admin access required.", vbExclamation: Exit Sub
+    Dim userId As Long: userId = SelectedIdInTable("tblUsers")
+    If userId = 0 Then
+        MsgBox "Select a user row first.", vbExclamation
+        Exit Sub
+    End If
+
+    Dim ws As Worksheet: Set ws = modUtils.DataSheet("_data_users")
+    Dim r As Long: r = modUtils.FindById(ws, userId)
+    If r = 0 Then Exit Sub
+    Dim current As String: current = CStr(ws.Cells(r, modUtils.ColIndex(ws, "username")).Value)
+
+    Dim newUsername As String
+    newUsername = InputBox("New username:", "Edit Username", current)
+    If Trim(newUsername) = "" Then Exit Sub
+
+    If Not SetUsername(userId, newUsername) Then
+        MsgBox "That username is already taken.", vbExclamation
+        Exit Sub
+    End If
+    RefreshUsersTable
 End Sub
 
 Public Sub UI_DeactivateSelectedUser()
