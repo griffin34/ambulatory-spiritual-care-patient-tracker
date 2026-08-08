@@ -1,6 +1,6 @@
 # Ambulatory Patient Tracking System — Excel VBA Workbook Design Spec
 
-**Date:** 2026-04-13  
+**Date:** 2026-04-13 (updated 2026-07-08 for Electron v1.1 parity: SDAT tracking, soft delete/restore, the `deleted` status, `rescheduled` appointment status, and the SDAT Improvement report)  
 **Status:** Approved  
 **Companion spec:** `2026-04-13-ambulatory-patients-design.md`
 
@@ -126,8 +126,14 @@ Column names match the SQLite schema exactly (enables direct migration export).
 | referral_source_id | Long | FK → `_data_lov` |
 | religion_id | Long | FK → `_data_lov` |
 | language_id | Long | FK → `_data_lov` |
-| current_status | String | `ready_to_schedule` \| `scheduled` \| `dropped` \| `completed` \| `on_hold` |
-| is_active | Integer | Soft-delete |
+| current_status | String | `ready_to_schedule` \| `scheduled` \| `dropped` \| `completed` \| `on_hold` \| `deleted` |
+| is_active | Integer | Soft-delete: 0 when `current_status = deleted` |
+| sdat_begin_score | Long | 0–40, nullable |
+| sdat_begin_date | String | YYYY-MM-DD, nullable |
+| sdat_end_score | Long | 0–40, nullable |
+| sdat_end_date | String | YYYY-MM-DD, nullable |
+| sdat_pct_improvement | Double | Stored, not recomputed per report. `(begin−end)/begin`, null if either score or begin=0 is missing |
+| notes | String | Free text, max 256 characters, nullable |
 | created_at | String | |
 
 ### `_data_status_history`
@@ -151,7 +157,7 @@ Every status transition writes a new row here AND updates `current_status` on th
 | type_id | Long | FK → `_data_lov` |
 | consultant_id | Long | FK → `_data_consultants` |
 | is_last_appointment | Integer | 0 or 1 |
-| status | String | `scheduled` \| `completed` \| `no_show` \| `cancelled` |
+| status | String | `scheduled` \| `completed` \| `no_show` \| `cancelled` \| `rescheduled` |
 | notes | String | |
 | created_at | String | |
 
@@ -209,8 +215,9 @@ Every status transition writes a new row here AND updates `current_status` on th
 | Completed | Blue (`#9DC3E6`) | Program complete |
 | Dropped | Red (`#FFC7CE`) | Patient disengaged |
 | On Hold | Grey (`#D9D9D9`) | Temporarily paused |
+| Deleted | Dark Grey (`#BFBFBF`) | Soft-deleted; hidden from the default WorkQueue, shown only under the Deleted filter |
 
-Applied via conditional formatting on the `current_status` column in the WorkQueue sheet. Status transitions are unrestricted (any → any) and always recorded in `_data_status_history`.
+Applied via conditional formatting on the `current_status` column in the WorkQueue sheet. Status transitions are unrestricted (any → any) and always recorded in `_data_status_history`, **except** `deleted`, which is only reachable via the dedicated Delete action (not the general status dropdown) — see Patient Delete/Restore below.
 
 ---
 
@@ -220,16 +227,17 @@ Applied via conditional formatting on the `current_status` column in the WorkQue
 
 - Excel Table (`ListObject`) with columns: Last Name, First Name, MRN, Referral Date, Referral Source, Language, Next Appointment, Status
 - Conditional formatting on Status column for color coding
-- Filter controls above the table: status filter (dropdown or checkboxes), referral source dropdown, search box (VBA-driven, filters table by name or MRN)
+- Filter controls above the table: status filter (dropdown or checkboxes, including a "Deleted" option that shows only soft-deleted patients — excluded from every other filter value), referral source dropdown, search box (VBA-driven, filters table by name or MRN)
 - Stats row: total active patients + count per status (VBA-calculated, refreshed on sheet activate)
 - Buttons: `+ Add Patient` (opens `AddEditPatientForm`), `View Patient` (opens `PatientDetailForm` for selected row)
 - Double-clicking a row also opens `PatientDetailForm`
 
 ### PatientDetailForm
 
-Two-panel UserForm:
-- **Left panel:** name, MRN, phone, referral date, referral source, religion, language — with Edit button (opens `AddEditPatientForm` pre-populated). Status badge (label with colored background), Change Status dropdown. Status history list (scrollable listbox: status, changed by, date).
+Three-section UserForm:
+- **Left panel:** name, MRN, phone, referral date, referral source, religion, language — with Edit button (opens `AddEditPatientForm` pre-populated). Status badge (label with colored background), Change Status dropdown (excludes `deleted` — not manually selectable). Status history list (scrollable listbox: status, changed by, date).
 - **Right panel:** chronological list of appointment entries (listbox or frame with labels): date, time, type, consultant, status, last-appointment flag, notes. `+ Add Appointment` button (opens `AddEditAppointmentForm`). Edit button per appointment.
+- **Bottom panel:** SDAT card (begin/end score + date, live % improvement shown once both scores are entered) and Notes card (256-char max), each independently editable in place with its own Save button — no need to open `AddEditPatientForm` for either. Delete Patient button (soft-deletes: `current_status = deleted`, `is_active = 0`, recorded in status history); when viewing an already-deleted patient this becomes a Restore Patient button instead (`current_status = on_hold`, `is_active = 1`).
 
 ### Appointments Sheet
 
@@ -241,15 +249,16 @@ Two-panel UserForm:
 
 ### Reports Sheet
 
-Three stacked sections, each independently configured:
+Four stacked sections, each independently configured:
 
 | Report | Input | Output |
 |--------|-------|--------|
 | Referrals by Source | Date range | Bar chart + table (source, count, %) |
 | First Appointments | Date range | Bar chart by week + table (patient, first appt date, consultant) |
 | Patients Dropped | Date range | Bar chart by week + table (patient, dropped date, changed by) |
+| SDAT Improvement | Date range (filters on ending SDAT date) | Table (patient, begin score/date, end score/date, % improvement) + overall total row: `(Σbegin − Σend) / Σbegin`. Cohort = patients with both scores present. |
 
-Each section: date range inputs, `Run` button (refreshes chart and table), `Export` button (writes table to `.xlsx`). Charts are native Excel chart objects embedded on the sheet, refreshed by VBA on Run.
+Each section: date range inputs, `Run` button (refreshes chart and table), `Export` button (writes table to `.xlsx`). Charts are native Excel chart objects embedded on the sheet, refreshed by VBA on Run. A report with no matching rows shows "No results found" instead of an empty chart/table, matching the Electron app's 1.1 reports redesign.
 
 ### Admin Sheet
 

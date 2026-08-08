@@ -2,7 +2,10 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from build import DATA_SHEETS, UI_SHEETS, SHEET_HEADERS, SEED_LOV, SEED_SETTINGS, SEED_CONSULTANTS
+from build import (
+    DATA_SHEETS, UI_SHEETS, SHEET_HEADERS, SEED_LOV, SEED_SETTINGS, SEED_CONSULTANTS,
+    ANCHOR_SHEET, EXCEL_BUILD_VERSION, _default_output_path,
+)
 
 
 def test_data_sheets_order():
@@ -25,7 +28,8 @@ def test_all_data_sheets_have_headers():
 
 def test_users_headers():
     assert SHEET_HEADERS['_data_users'] == [
-        'id', 'name', 'email', 'password_hash', 'role', 'is_active', 'created_at',
+        'id', 'name', 'username', 'email', 'password_hash', 'role', 'is_active', 'created_at',
+        'security_question', 'security_answer_hash',
     ]
 
 
@@ -33,7 +37,10 @@ def test_patients_headers():
     assert SHEET_HEADERS['_data_patients'] == [
         'id', 'mrn', 'last_name', 'first_name', 'middle_name', 'phone',
         'date_of_referral', 'referral_source_id', 'religion_id', 'language_id',
-        'current_status', 'is_active', 'created_at',
+        'current_status', 'is_active',
+        'sdat_begin_score', 'sdat_begin_date', 'sdat_end_score', 'sdat_end_date',
+        'sdat_pct_improvement', 'notes',
+        'created_at',
     ]
 
 
@@ -119,3 +126,24 @@ def test_no_orphan_header_keys():
 def test_no_duplicate_columns():
     for sheet_name, cols in SHEET_HEADERS.items():
         assert len(cols) == len(set(cols)), f'Duplicate column in {sheet_name}: {cols}'
+
+
+def test_anchor_sheet_distinct_from_data_and_ui_sheets():
+    # Excel refuses to hide the last remaining visible sheet in a workbook, so
+    # Workbook_Open hides all UI sheets behind this always-visible anchor sheet
+    # instead. It must never collide with a data or UI sheet name.
+    assert ANCHOR_SHEET not in DATA_SHEETS
+    assert ANCHOR_SHEET not in UI_SHEETS
+
+
+def test_excel_build_version_recorded_in_seed_settings():
+    d = {row[0]: row[1] for row in SEED_SETTINGS}
+    assert d['excel_build_version'] == str(EXCEL_BUILD_VERSION)
+
+
+def test_default_output_path_is_versioned():
+    # A new build must never share a filename with a pre-versioning
+    # (or older-versioned) file already sitting on a coordinator's machine --
+    # see modUpgrade's in-app import for how an old file actually gets merged in.
+    path = _default_output_path()
+    assert os.path.basename(path) == f'AmbulatoryPatients-v{EXCEL_BUILD_VERSION}.xlsm'
