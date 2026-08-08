@@ -6,7 +6,13 @@ Option Explicit
 ' Returns False (no row added) if username collides case-insensitively with an
 ' existing user -- mirrors SetUsername's uniqueness guarantee, since a
 ' duplicate username would make one of the two accounts' login ambiguous.
-Public Function CreateUser(name As String, username As String, email As String, password As String, role As String) As Boolean
+' securityQuestion/securityAnswer are optional (blank/blank is fine -- self-
+' service password recovery (modAuth.VerifySecurityAnswer) just stays
+' unavailable for that account until they're set). When provided, the answer
+' is hashed via modAuth.HashPassword(modAuth.NormalizeAnswer(...)) so
+' VerifySecurityAnswer's re-hash of a submitted answer matches.
+Public Function CreateUser(name As String, username As String, email As String, password As String, role As String, _
+    Optional securityQuestion As String = "", Optional securityAnswer As String = "") As Boolean
     Dim ws As Worksheet
     Set ws = modUtils.DataSheet("_data_users")
     If UsernameTaken(ws, username, 0) Then Exit Function
@@ -22,6 +28,8 @@ Public Function CreateUser(name As String, username As String, email As String, 
     ws.Cells(newRow, 6).Value = role
     ws.Cells(newRow, 7).Value = 1
     ws.Cells(newRow, 8).Value = modUtils.NowISO()
+    ws.Cells(newRow, 9).Value = Trim(securityQuestion)
+    ws.Cells(newRow, 10).Value = IIf(Trim(securityAnswer) = "", "", modAuth.HashPassword(modAuth.NormalizeAnswer(securityAnswer)))
     modUtils.AutoSave
     CreateUser = True
 End Function
@@ -93,6 +101,156 @@ Public Sub ResetPassword(userId As Long, newPassword As String)
     If r = 0 Then Exit Sub
     ws.Cells(r, modUtils.ColIndex(ws, "password_hash")).Value = modAuth.HashPassword(newPassword)
     modUtils.AutoSave
+End Sub
+
+' ── Self-service password recovery ─────────────────────────────────────────────
+' Returns "" if the username doesn't match an active user, or if that user has
+' no security question set -- both cases ForgotPasswordForm treats the same
+' ("no recovery available for that account").
+Public Function GetSecurityQuestion(username As String) As String
+    Dim ws As Worksheet: Set ws = modUtils.DataSheet("_data_users")
+    Dim last As Long: last = modUtils.LastDataRow(ws)
+    If last < 2 Then Exit Function
+
+    Dim cUsername As Long: cUsername = modUtils.ColIndex(ws, "username")
+    Dim cActive As Long: cActive = modUtils.ColIndex(ws, "is_active")
+    Dim cQuestion As Long: cQuestion = modUtils.ColIndex(ws, "security_question")
+
+    Dim i As Long
+    For i = 2 To last
+        If LCase(CStr(ws.Cells(i, cUsername).Value)) = LCase(Trim(username)) And _
+           ws.Cells(i, cActive).Value = 1 Then
+            GetSecurityQuestion = CStr(ws.Cells(i, cQuestion).Value)
+            Exit Function
+        End If
+    Next i
+End Function
+
+' Returns a user's currently-set security question by id, "" if none set or
+' the id doesn't exist. Unlike GetSecurityQuestion (username lookup, gated on
+' is_active, for the anonymous login-time flow), this is for populating
+' SecurityQuestionForm where the caller already knows the user is valid --
+' e.g. an admin editing a deactivated account's question, which GetSecurityQuestion
+' would otherwise refuse to reveal.
+Public Function GetSecurityQuestionById(userId As Long) As String
+    Dim ws As Worksheet: Set ws = modUtils.DataSheet("_data_users")
+    Dim r As Long: r = modUtils.FindById(ws, userId)
+    If r = 0 Then Exit Function
+    GetSecurityQuestionById = CStr(ws.Cells(r, modUtils.ColIndex(ws, "security_question")).Value)
+End Function
+
+' Sets (or, if both blank, clears) a user's security question/answer after
+' account creation -- the only way an account created before this feature
+' existed (which is every account as of this build) can gain self-service
+' Forgot Password access. Mirrors CreateUser's both-or-neither validation and
+' answer-hashing (modAuth.NormalizeAnswer + HashPassword) exactly, so
+' modAuth.VerifySecurityAnswer's re-hash of a submitted answer still matches.
+' Returns False (no change made) if userId doesn't exist or exactly one of
+' question/answer is blank.
+Public Function SetSecurityQuestion(userId As Long, question As String, answer As String) As Boolean
+    If (Trim(question) = "") <> (Trim(answer) = "") Then Exit Function
+    Dim ws As Worksheet: Set ws = modUtils.DataSheet("_data_users")
+    Dim r As Long: r = modUtils.FindById(ws, userId)
+    If r = 0 Then Exit Function
+    ws.Cells(r, modUtils.ColIndex(ws, "security_question")).Value = Trim(question)
+    ws.Cells(r, modUtils.ColIndex(ws, "security_answer_hash")).Value = _
+        IIf(Trim(answer) = "", "", modAuth.HashPassword(modAuth.NormalizeAnswer(answer)))
+    modUtils.AutoSave
+    SetSecurityQuestion = True
+End Function
+
+' Opens SecurityQuestionForm for the CURRENT session's own account -- any
+' logged-in user (admin or coordinator) can set/change their own security
+' question, unlike UI_SetSelectedUserSecurityQuestion below which is admin-only.
+Public Sub UI_OpenMySecurityQuestion()
+    If Not modAuth.IsLoggedIn() Then Exit Sub
+    SecurityQuestionForm.UserId = modAuth.gUserId
+    SecurityQuestionForm.Show
+End Sub
+
+Public Sub UI_SetSelectedUserSecurityQuestion()
+    If Not modAuth.IsAdmin() Then MsgBox "Admin access required.", vbExclamation: Exit Sub
+    Dim userId As Long: userId = SelectedIdInTable("tblUsers")
+    If userId = 0 Then
+        MsgBox "Select a user row first.", vbExclamation
+        Exit Sub
+    End If
+    SecurityQuestionForm.UserId = userId
+    SecurityQuestionForm.Show
+End Sub
+
+' Counterpart to ResetPassword for a user who isn't logged in yet -- only acts
+' on an ACTIVE user found by username (case-insensitive, matching
+' modAuth.ValidateLogin's lookup). Returns False (no change made) if no such
+' user exists, so ForgotPasswordForm can tell the caller apart from success.
+Public Function ResetPasswordByUsername(username As String, newPassword As String) As Boolean
+    Dim ws As Worksheet: Set ws = modUtils.DataSheet("_data_users")
+    Dim last As Long: last = modUtils.LastDataRow(ws)
+    If last < 2 Then Exit Function
+
+    Dim cUsername As Long: cUsername = modUtils.ColIndex(ws, "username")
+    Dim cActive As Long: cActive = modUtils.ColIndex(ws, "is_active")
+    Dim cHash As Long: cHash = modUtils.ColIndex(ws, "password_hash")
+
+    Dim i As Long
+    For i = 2 To last
+        If LCase(CStr(ws.Cells(i, cUsername).Value)) = LCase(Trim(username)) And _
+           ws.Cells(i, cActive).Value = 1 Then
+            ws.Cells(i, cHash).Value = modAuth.HashPassword(newPassword)
+            modUtils.AutoSave
+            ResetPasswordByUsername = True
+            Exit Function
+        End If
+    Next i
+End Function
+
+' ── Break-glass recovery code ───────────────────────────────────────────────────
+' 12 chars from an alphabet that excludes visually-ambiguous characters
+' (0/O, 1/I/L), formatted as "XXXX-XXXX-XXXX" for easier transcription.
+Public Function GenerateRecoveryCode() As String
+    Const alphabet As String = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+    Randomize
+    Dim result As String
+    Dim i As Long
+    For i = 1 To 12
+        If i > 1 And (i - 1) Mod 4 = 0 Then result = result & "-"
+        result = result & Mid(alphabet, Int(Rnd() * Len(alphabet)) + 1, 1)
+    Next i
+    GenerateRecoveryCode = result
+End Function
+
+' Generates a new recovery code, stores only its hash (modAuth.HashRecoveryCode
+' normalizes + hashes the same way modAuth.VerifyRecoveryCode re-hashes a
+' submitted code), and returns the PLAINTEXT code -- the only moment it's ever
+' visible again; like a password, it cannot be retrieved later, only rotated.
+Public Function RotateRecoveryCode() As String
+    Dim code As String: code = GenerateRecoveryCode()
+    modUtils.SetSetting "recovery_code_hash", modAuth.HashRecoveryCode(code)
+    modUtils.AutoSave
+    RotateRecoveryCode = code
+End Function
+
+' Break-glass reset: sets a new password AND reactivates the account in one
+' step, since the whole point of the recovery-code path is regaining access
+' even to an account that's been deactivated as well as locked out.
+Public Sub RecoverAccount(userId As Long, newPassword As String)
+    Dim ws As Worksheet: Set ws = modUtils.DataSheet("_data_users")
+    Dim r As Long: r = modUtils.FindById(ws, userId)
+    If r = 0 Then Exit Sub
+    ws.Cells(r, modUtils.ColIndex(ws, "password_hash")).Value = modAuth.HashPassword(newPassword)
+    ws.Cells(r, modUtils.ColIndex(ws, "is_active")).Value = 1
+    modUtils.AutoSave
+End Sub
+
+Public Sub UI_RotateRecoveryCode()
+    If Not modAuth.IsAdmin() Then MsgBox "Admin access required.", vbExclamation: Exit Sub
+    If modUtils.GetSetting("recovery_code_hash") <> "" Then
+        If MsgBox("This will invalidate the current recovery code. Continue?", _
+            vbQuestion + vbYesNo, "Rotate Recovery Code") <> vbYes Then Exit Sub
+    End If
+    Dim code As String: code = RotateRecoveryCode()
+    MsgBox "New recovery code -- write this down now, it cannot be shown again, only rotated:" & _
+        vbCrLf & vbCrLf & code, vbInformation, "Recovery Code"
 End Sub
 
 ' Renames a user's sign-in username. Returns False (no change made) if another

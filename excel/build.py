@@ -34,6 +34,7 @@ ANCHOR_SHEET = 'Splash'
 SHEET_HEADERS = {
     '_data_users': [
         'id', 'name', 'username', 'email', 'password_hash', 'role', 'is_active', 'created_at',
+        'security_question', 'security_answer_hash',
     ],
     '_data_patients': [
         'id', 'mrn', 'last_name', 'first_name', 'middle_name', 'phone',
@@ -389,6 +390,45 @@ def _add_button(ws, cell, caption, macro, width=110, height=20):
     return btn
 
 
+def _add_button_after(ws, prev_btn, caption, macro, width=110, height=20, gap=10):
+    """Add a button positioned relative to a previously-created button's real,
+    measured Left/Width/Top -- not another cell anchor.
+
+    Confirmed on WorkQueue's row-1 toolbar: cell-anchored buttons placed via
+    _add_button can end up overlapping their neighbors even though each one
+    individually gets its own coded width -- e.g. the Search/+Add Patient/
+    View Patient/Export/Logout button chain, where every consecutive pair
+    overlapped by 14-22pt despite each _add_button call looking correct in
+    isolation (traced to H1's own button ending up 159pt wide instead of the
+    coded 110pt default, for reasons that didn't resolve to any single
+    column-width change in this function -- Placement=xlFreeFloating should
+    make a button's position/size immune to later row/column resizes, but
+    empirically did not here). Chaining off the prior button's real, just-
+    measured geometry sidesteps the problem entirely regardless of cause.
+    """
+    left = prev_btn.Left + prev_btn.Width + gap
+    btn = ws.api.Buttons().Add(left, prev_btn.Top, width, height)
+    btn.Caption = caption
+    btn.OnAction = macro
+    btn.Placement = 3  # xlFreeFloating
+    return btn
+
+
+def _add_button_below(ws, prev_btn, caption, macro, width=110, height=20, gap=10):
+    """Same idea as _add_button_after, but stacks a button below a previously-
+    created one (same Left, Top computed from the real measured bottom edge)
+    instead of beside it. Use this instead of a cell anchor one row down when
+    that row's real RowHeight won't be finalized until later in the same
+    build function -- a cell anchor placed too early computes against
+    whatever height the row still has at that moment, not its final one."""
+    top = prev_btn.Top + prev_btn.Height + gap
+    btn = ws.api.Buttons().Add(prev_btn.Left, top, width, height)
+    btn.Caption = caption
+    btn.OnAction = macro
+    btn.Placement = 3  # xlFreeFloating
+    return btn
+
+
 def _add_pick_date_button(ws, cell, macro, width=20):
     """Adds a small '...' date-picker button overlapping the right edge of a
     date input cell, wired to `macro` (a modReports.UI_Pick* Sub that shows
@@ -464,11 +504,17 @@ def _build_workqueue_sheet(wb):
 
     ws.range('G1').value = ''
 
-    _add_button(ws, 'H1', 'Search', 'modPatients.RefreshWorkQueue')
-    _add_button(ws, 'J1', '+ Add Patient', 'modPatients.UI_OpenAddPatient')
-    _add_button(ws, 'L1', 'View Patient', 'modPatients.UI_ViewSelectedPatient')
-    _add_button(ws, 'N1', 'Export', 'modPatients.UI_ExportWorkQueue', width=70)
-    _add_button(ws, 'O1', 'Logout', 'modAuth.UI_Logout', width=70)
+    # Only the first button anchors to a real cell (H1) -- every button after
+    # it chains off the previous one's real measured position via
+    # _add_button_after, not another cell reference (see that helper's
+    # docstring for why: cell-anchored placement silently overlapped here).
+    search_btn = _add_button(ws, 'H1', 'Search', 'modPatients.RefreshWorkQueue')
+    add_patient_btn = _add_button_after(ws, search_btn, '+ Add Patient', 'modPatients.UI_OpenAddPatient')
+    view_patient_btn = _add_button_after(ws, add_patient_btn, 'View Patient', 'modPatients.UI_ViewSelectedPatient')
+    export_btn = _add_button_after(ws, view_patient_btn, 'Export', 'modPatients.UI_ExportWorkQueue', width=70)
+    logout_btn = _add_button_after(ws, export_btn, 'Logout', 'modAuth.UI_Logout', width=70)
+    _add_button_after(ws, logout_btn, 'Security Question', 'modAdmin.UI_OpenMySecurityQuestion', width=140)
+
     ws.range('1:1').api.RowHeight = 22  # buttons are 20pt tall -- default row height (~15pt) let them overhang into row 2
 
     ws.range('B2').value = 'Total Active: 0'
@@ -586,11 +632,22 @@ def _build_admin_sheet(wb):
 
     ws.range('B1').value = 'User Management'
     ws.range('B1').font.bold = True
-    _add_button(ws, 'B2', '+ Add User', 'modAdmin.UI_OpenAddUser', width=90)
+    add_user_btn = _add_button(ws, 'B2', '+ Add User', 'modAdmin.UI_OpenAddUser', width=90)
     _add_button(ws, 'C2', 'Reset PW', 'modAdmin.UI_ResetSelectedUserPassword', width=80)
     _add_button(ws, 'D2', 'Deactivate', 'modAdmin.UI_DeactivateSelectedUser', width=80)
     _add_button(ws, 'E2', 'Activate', 'modAdmin.UI_ActivateSelectedUser', width=80)
     _add_button(ws, 'F2', 'Edit Username', 'modAdmin.UI_EditSelectedUsername', width=110)
+
+    # Positioned below the real +Add User button's own measured bottom edge,
+    # not a 'B3' cell anchor -- row 2's RowHeight isn't widened to its final
+    # 22pt until later in this function (near the LoV button block below), so
+    # a cell anchor placed here would compute against row 2's still-default
+    # (~14pt) height and end up overlapping row 2's buttons both vertically
+    # AND horizontally (this button is wide enough to span under both +Add
+    # User and Reset PW). Confirmed this exact failure for real -- same root
+    # cause as _add_button_after's docstring, just the vertical axis.
+    _add_button_below(ws, add_user_btn, 'Security Question', 'modAdmin.UI_SetSelectedUserSecurityQuestion', width=140)
+    ws.range('3:3').api.RowHeight = 34  # tall enough that the button (below row 2's real bottom edge) can't reach into row 4's table header
 
     user_headers = ['ID', 'Name', 'Username', 'Email', 'Role', 'Active']
     ws.range('A4').value = user_headers
@@ -654,6 +711,11 @@ def _build_admin_sheet(wb):
     ws.range('30:30').api.RowHeight = 22  # buttons are 20pt tall -- default row height (~15pt) let them overhang into row 31, now occupied by the button below
     _add_button(ws, 'B31', 'Import from Previous Excel File', 'modUpgrade.UI_UpgradeFromOldWorkbook', width=170)
 
+    # -- Account Recovery (admin only -- enforced at runtime in modAdmin.UI_RotateRecoveryCode) --
+    ws.range('B33').value = 'Account Recovery'
+    ws.range('B33').font.bold = True
+    _add_button(ws, 'B34', 'Rotate Recovery Code', 'modAdmin.UI_RotateRecoveryCode', width=150)
+
     # tblLov's Value/Sort Order/Chaplain columns are deliberately left locked
     # (read-only) -- editing now goes through AddEditLovForm (Edit button),
     # not direct cell entry.
@@ -676,7 +738,7 @@ def _add_chart(ws, anchor_cell, source_range_addr, name, width=320, height=190):
 
 def _build_reports_sheet(wb):
     """Build the Reports sheet: one shared report selector + date range + Run
-    button (row 1, columns G-P -- mirrors the Electron app's reports
+    button (rows 2-3, columns A-F -- mirrors the Electron app's reports
     redesign), above 4 stacked report sections (Referrals by Source, First
     Appointments, Patients Dropped, SDAT Improvement), each with just its own
     results area and Export button. Running "All Reports" populates all 4;
@@ -723,36 +785,48 @@ def _build_reports_sheet(wb):
     ws.range('F:F').api.ColumnWidth = 14  # ~83pt, fits '% Improvement' + Export button (70pt)
 
     # J:K hold First Appointments/Patients Dropped's hidden week-label/count
-    # helper range (written further down). Hidden here, BEFORE any button to
-    # its right gets placed -- Buttons().Add() bakes in an absolute pixel
-    # position computed from the column widths *at that moment*, so hiding
-    # J:K afterward (making them 0-width) would shift L onward left without
-    # taking already-placed buttons with them, leaving every button in the
-    # shared controls row visually adrift from its label/cell.
+    # helper range (written further down) -- unrelated to the shared report
+    # controls below, just needs to happen before those two sections write
+    # their J20/J40 helper headers.
     ws.range('J:K').api.EntireColumn.Hidden = True
 
-    # -- Shared report controls (row 1, columns G onward -- free at build time
-    # since charts anchor at row 4+ and no section places anything in row 1
-    # past column A). Mirrors the Electron app's reports redesign: one report
-    # selector (defaults to "All Reports"), one shared date range, one Run
-    # button -- replacing what used to be 4 independent per-section date
-    # ranges + Run buttons. Each section below keeps only its own Export
-    # button, since export still acts on one already-computed report at a time.
-    # Columns I/J/K are deliberately skipped -- J:K are the hidden columns above.
-    ws.range('G1').value = 'Report:'
-    ws.range('H:H').api.ColumnWidth = 20  # ~118pt, fits 'Referrals by Source' (20 chars)
+    # -- Shared report controls (rows 2-3, columns A-F). Mirrors the Electron
+    # app's reports redesign: one report selector (defaults to "All
+    # Reports"), one shared date range, one Run button -- replacing what used
+    # to be 4 independent per-section date ranges + Run buttons. Each section
+    # below keeps only its own Export button, since export still acts on one
+    # already-computed report at a time.
+    #
+    # This used to live at row 1, columns G onward ("free" space to the right
+    # of the report tables' own A:F columns). That put it 490+pt from the
+    # left edge, since A:F alone is that wide already (sized for the report
+    # tables' own content -- patient names, dates, etc.) -- off the right
+    # edge of a normal window, needing a horizontal scroll just to see the
+    # report picker or Run button. Moved into rows 2-3 instead, which sit
+    # blank between each section's title (row 1) and its own header row
+    # (A4/A20/A40/A60) -- reusing the exact width the report tables already
+    # need, not adding any. Row 2 stays out of column F specifically because
+    # Referrals by Source's own Export button already lives at F2 (below).
+    #
+    # Row height set BEFORE anything in rows 2-3 is placed (including F2's
+    # Export button below, which comes later in this function) -- confirmed
+    # for real that doing this the other way round (default ~14pt height at
+    # placement time, widened only afterward) lets a 20pt-tall button on row 3
+    # reach up into row 2's buttons, since Buttons().Add() bakes in an
+    # absolute pixel Top computed from whatever height the row has *at that
+    # moment*, not its eventual final one.
+    ws.range('2:3').api.RowHeight = 22
+    ws.range('A2').value = 'Report:'
     report_list = 'All Reports,Referrals by Source,First Appointments,Patients Dropped,SDAT Improvement'
-    ws.range('H1').api.Validation.Add(3, 1, Formula1=report_list)  # xlValidateList
-    ws.range('H1').value = 'All Reports'
-    ws.range('L1').value = 'From:'
-    ws.range('M:M').api.ColumnWidth = 16
-    ws.range('M1').api.NumberFormat = '@'
-    _add_pick_date_button(ws, 'M1', 'modReports.UI_PickSharedFromDate')
-    ws.range('N1').value = 'To:'
-    ws.range('O:O').api.ColumnWidth = 16
-    ws.range('O1').api.NumberFormat = '@'
-    _add_pick_date_button(ws, 'O1', 'modReports.UI_PickSharedToDate')
-    _add_button(ws, 'P1', 'Run', 'modReports.UI_RunSelectedReport', width=60)
+    ws.range('B2').api.Validation.Add(3, 1, Formula1=report_list)  # xlValidateList
+    ws.range('B2').value = 'All Reports'
+    ws.range('A3').value = 'From:'
+    ws.range('B3').api.NumberFormat = '@'
+    _add_pick_date_button(ws, 'B3', 'modReports.UI_PickSharedFromDate')
+    ws.range('C3').value = 'To:'
+    ws.range('D3').api.NumberFormat = '@'
+    _add_pick_date_button(ws, 'D3', 'modReports.UI_PickSharedToDate')
+    _add_button(ws, 'E3', 'Run', 'modReports.UI_RunSelectedReport', width=60)
 
     # -- Referrals by Source -------------------------------------------------
     ws.range('A1').value = 'Referrals by Source'
@@ -796,7 +870,7 @@ def _build_reports_sheet(wb):
     ws.range('A79').value = 'Overall Improvement:'
     ws.range('B79').value = ''
 
-    _protect_sheet(ws, unlocked_ranges=['H1', 'M1', 'O1'])
+    _protect_sheet(ws, unlocked_ranges=['B2', 'B3', 'D3'])
 
 
 def _save_workbook(wb, output_path):

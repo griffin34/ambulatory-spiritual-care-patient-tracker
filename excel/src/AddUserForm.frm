@@ -1,7 +1,7 @@
 VERSION 5.00
 Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} AddUserForm 
    Caption         =   "Add User"
-   ClientHeight    =   5556
+   ClientHeight    =   6000
    ClientLeft      =   108
    ClientTop       =   456
    ClientWidth     =   5784
@@ -20,7 +20,6 @@ Option Explicit
 Private Sub UserForm_Activate()
     cboRole.AddItem "admin"
     cboRole.AddItem "coordinator"
-    lblEmail.Caption = "Username:"
     If FirstRunMode Then
         Me.Caption = "Create Admin Account"
         cboRole.value = "admin"
@@ -41,7 +40,12 @@ Private Sub btnSave_Click()
         ShowError "Passwords must match and cannot be blank."
         Exit Sub
     End If
-    If Not modAdmin.CreateUser(Trim(txtName.Text), Trim(txtEmail.Text), Trim(txtEmailReal.Text), txtPassword.Text, cboRole.value) Then
+    If (Trim(txtSecurityQuestion.Text) = "") <> (Trim(txtSecurityAnswer.Text) = "") Then
+        ShowError "Enter both a security question and an answer, or leave both blank."
+        Exit Sub
+    End If
+    If Not modAdmin.CreateUser(Trim(txtName.Text), Trim(txtEmail.Text), Trim(txtEmailReal.Text), txtPassword.Text, cboRole.value, _
+        Trim(txtSecurityQuestion.Text), Trim(txtSecurityAnswer.Text)) Then
         ShowError "That username is already taken."
         Exit Sub
     End If
@@ -50,6 +54,13 @@ Private Sub btnSave_Click()
             ShowError "Account created, but sign-in failed -- please close this dialog and sign in from the login screen."
             Exit Sub
         End If
+        Dim code As String: code = modAdmin.RotateRecoveryCode()
+        MsgBox "Recovery code -- write this down now, it cannot be shown again, only rotated:" & _
+            vbCrLf & vbCrLf & code, vbInformation, "Recovery Code"
+        ' A brand-new file starts on the current build with nothing to catch
+        ' up on -- don't prompt "What's New" the next time an existing file
+        ' happens to check (see modUpgrade.ShouldShowWhatsNew).
+        modUpgrade.MarkVersionSeen
         Dim ws As Worksheet
         For Each ws In ThisWorkbook.Sheets
             If Left(ws.name, 5) <> "_data" Then
@@ -71,4 +82,5 @@ Private Sub ShowError(msg As String)
     lblError.Caption = msg
     lblError.Visible = True
 End Sub
+
 

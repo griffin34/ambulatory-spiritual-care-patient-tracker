@@ -29,6 +29,7 @@ def test_all_data_sheets_have_headers():
 def test_users_headers():
     assert SHEET_HEADERS['_data_users'] == [
         'id', 'name', 'username', 'email', 'password_hash', 'role', 'is_active', 'created_at',
+        'security_question', 'security_answer_hash',
     ]
 
 

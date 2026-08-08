@@ -1,7 +1,7 @@
 VERSION 5.00
 Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} LoginForm 
    Caption         =   "Ambulatory Patient Tracking - Login"
-   ClientHeight    =   3432
+   ClientHeight    =   4400
    ClientLeft      =   108
    ClientTop       =   456
    ClientWidth     =   5784
@@ -13,6 +13,7 @@ Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
+
 Option Explicit
 
 Private Sub UserForm_Initialize()
@@ -58,5 +59,14 @@ Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
         Cancel = True
         ThisWorkbook.Close SaveChanges:=False
     End If
+End Sub
+
+
+Private Sub lblForgotPassword_Click()
+    ForgotPasswordForm.Show
+End Sub
+
+Private Sub lblRecoveryCode_Click()
+    AdminRecoveryForm.Show
 End Sub
 

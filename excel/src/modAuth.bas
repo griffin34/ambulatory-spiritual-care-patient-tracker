@@ -11,6 +11,67 @@ Public Function HashPassword(plaintext As String) As String
     HashPassword = modSHA256.SHA256(plaintext)
 End Function
 
+' Case/whitespace-insensitive normalization for security-question answers, so
+' "Blue" and " blue " hash identically. Public so modAdmin.CreateUser hashes
+' new answers the same way VerifySecurityAnswer re-hashes submitted ones.
+Public Function NormalizeAnswer(s As String) As String
+    NormalizeAnswer = LCase(Trim(s))
+End Function
+
+' Strips dashes/spaces and uppercases a recovery code, so "abcd-efgh-jkmn" and
+' "ABCDEFGHJKMN" (typed without the display dashes) hash identically.
+Private Function NormalizeCode(s As String) As String
+    Dim i As Long, ch As String, result As String
+    For i = 1 To Len(s)
+        ch = UCase(Mid(s, i, 1))
+        If ch <> "-" And ch <> " " Then result = result & ch
+    Next i
+    NormalizeCode = result
+End Function
+
+' ── Self-service password recovery ─────────────────────────────────────────────
+' True if `answer` matches the stored security answer for an ACTIVE user with
+' this username. False (never a match) if the user is missing, inactive, or
+' has no security answer set -- a blank stored hash must never match a blank
+' submitted answer.
+Public Function VerifySecurityAnswer(username As String, answer As String) As Boolean
+    Dim ws As Worksheet
+    Set ws = modUtils.DataSheet("_data_users")
+    Dim last As Long: last = modUtils.LastDataRow(ws)
+    If last < 2 Then Exit Function
+
+    Dim cUsername As Long: cUsername = modUtils.ColIndex(ws, "username")
+    Dim cActive As Long: cActive = modUtils.ColIndex(ws, "is_active")
+    Dim cHash As Long: cHash = modUtils.ColIndex(ws, "security_answer_hash")
+
+    Dim i As Long
+    For i = 2 To last
+        If LCase(CStr(ws.Cells(i, cUsername).Value)) = LCase(Trim(username)) And _
+           ws.Cells(i, cActive).Value = 1 Then
+            Dim storedHash As String: storedHash = CStr(ws.Cells(i, cHash).Value)
+            If storedHash = "" Then Exit Function   ' no security answer set -- no bypass
+            VerifySecurityAnswer = (HashPassword(NormalizeAnswer(answer)) = storedHash)
+            Exit Function
+        End If
+    Next i
+End Function
+
+' ── Break-glass recovery code ───────────────────────────────────────────────────
+' True if `code` matches the current recovery code. False if no recovery code
+' has ever been generated (recovery_code_hash unset/blank) -- no bypass before
+' modAdmin.RotateRecoveryCode has run at least once.
+Public Function VerifyRecoveryCode(code As String) As Boolean
+    Dim storedHash As String: storedHash = modUtils.GetSetting("recovery_code_hash")
+    If storedHash = "" Then Exit Function
+    VerifyRecoveryCode = (HashPassword(NormalizeCode(code)) = storedHash)
+End Function
+
+' Hashes a freshly-generated plaintext recovery code the same way
+' VerifyRecoveryCode re-hashes a submitted one. Used by modAdmin.RotateRecoveryCode.
+Public Function HashRecoveryCode(plaintextCode As String) As String
+    HashRecoveryCode = HashPassword(NormalizeCode(plaintextCode))
+End Function
+
 ' ── Login validation ──────────────────────────────────────────────────────────
 ' Scans _data_users for a matching active row.
 ' On success: populates session globals and returns True.

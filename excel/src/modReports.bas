@@ -313,8 +313,8 @@ Public Sub SetDefaultDateRangeIfBlank()
     Dim ws As Worksheet: Set ws = modUtils.DataSheet("Reports")
     Dim firstOfMonth As String: firstOfMonth = Format(DateSerial(Year(Date), Month(Date), 1), "yyyy-mm-dd")
     Dim lastOfMonth As String: lastOfMonth = Format(DateSerial(Year(Date), Month(Date) + 1, 0), "yyyy-mm-dd")
-    If Trim(ws.Range("M1").Value & "") = "" Then ws.Range("M1").Value = firstOfMonth
-    If Trim(ws.Range("O1").Value & "") = "" Then ws.Range("O1").Value = lastOfMonth
+    If Trim(ws.Range("B3").Value & "") = "" Then ws.Range("B3").Value = firstOfMonth
+    If Trim(ws.Range("D3").Value & "") = "" Then ws.Range("D3").Value = lastOfMonth
 End Sub
 
 ' Plain-range table write (NOT a ListObject -- see _build_reports_sheet's
@@ -361,7 +361,7 @@ End Function
 
 Public Sub UI_RunReferralsBySource()
     Dim ws As Worksheet: Set ws = modUtils.DataSheet("Reports")
-    Dim rows As Collection: Set rows = ReferralsBySource(CStr(ws.Range("M1").Value), CStr(ws.Range("O1").Value))
+    Dim rows As Collection: Set rows = ReferralsBySource(CStr(ws.Range("B3").Value), CStr(ws.Range("D3").Value))
     Dim fields(2) As String: fields(0) = "source": fields(1) = "count": fields(2) = "percent"
     WriteTableRows ws, "A4", 3, rows, fields, 12 ' rows 5-16 -- next static content is the "First Appointments" label at A17
 
@@ -371,14 +371,20 @@ Public Sub UI_RunReferralsBySource()
         ws.Range("E5").Value = "No results found for this date range."
     Else
         ws.Range("E5").Value = ""
-        co.Chart.SetSourceData ws.Range("A4:C" & (4 + rows.Count))
+        ' A4:B only (Source, Count) -- NOT C (Percent). Including Percent made
+        ' Excel plot it as a second series alongside Count on the same axis
+        ' (confirmed for real: a 4/2/1 count mixed with 57/29/14 percent on
+        ' one clustered chart), which is why the chart looked broken. Percent
+        ' still shows in the table (WriteTableRows above writes all 3
+        ' columns) -- just not as its own bar series.
+        co.Chart.SetSourceData ws.Range("A4:B" & (4 + rows.Count))
         co.Visible = True
     End If
 End Sub
 
 Public Sub UI_RunFirstAppointments()
     Dim ws As Worksheet: Set ws = modUtils.DataSheet("Reports")
-    Dim rows As Collection: Set rows = FirstAppointments(CStr(ws.Range("M1").Value), CStr(ws.Range("O1").Value))
+    Dim rows As Collection: Set rows = FirstAppointments(CStr(ws.Range("B3").Value), CStr(ws.Range("D3").Value))
     Dim fields(2) As String: fields(0) = "patient_name": fields(1) = "first_appt_date": fields(2) = "consultant_name"
     WriteTableRows ws, "A20", 3, rows, fields, 16 ' rows 21-36 -- next static content is the "Patients Dropped" label at A37
 
@@ -398,7 +404,7 @@ End Sub
 
 Public Sub UI_RunPatientsDropped()
     Dim ws As Worksheet: Set ws = modUtils.DataSheet("Reports")
-    Dim rows As Collection: Set rows = PatientsDropped(CStr(ws.Range("M1").Value), CStr(ws.Range("O1").Value))
+    Dim rows As Collection: Set rows = PatientsDropped(CStr(ws.Range("B3").Value), CStr(ws.Range("D3").Value))
     Dim fields(2) As String: fields(0) = "patient_name": fields(1) = "dropped_date": fields(2) = "changed_by_name"
     WriteTableRows ws, "A40", 3, rows, fields, 16 ' rows 41-56 -- next static content is the "SDAT Improvement" label at A57
 
@@ -418,7 +424,7 @@ End Sub
 
 Public Sub UI_RunSdatImprovement()
     Dim ws As Worksheet: Set ws = modUtils.DataSheet("Reports")
-    Dim rows As Collection: Set rows = SdatImprovement(CStr(ws.Range("M1").Value), CStr(ws.Range("O1").Value))
+    Dim rows As Collection: Set rows = SdatImprovement(CStr(ws.Range("B3").Value), CStr(ws.Range("D3").Value))
     Dim fields(5) As String
     fields(0) = "patient_name": fields(1) = "begin_score": fields(2) = "begin_date"
     fields(3) = "end_score": fields(4) = "end_date": fields(5) = "pct_improvement"
@@ -437,7 +443,7 @@ End Sub
 ' the report(s) actually run) instead of leaving stale data on screen.
 Public Sub UI_RunSelectedReport()
     Dim ws As Worksheet: Set ws = modUtils.DataSheet("Reports")
-    Dim selected As String: selected = CStr(ws.Range("H1").Value)
+    Dim selected As String: selected = CStr(ws.Range("B2").Value)
 
     If selected = "All Reports" Or selected = "Referrals by Source" Then
         UI_RunReferralsBySource
@@ -543,9 +549,9 @@ Private Sub PickDateIntoCell(addr As String)
 End Sub
 
 Public Sub UI_PickSharedFromDate()
-    PickDateIntoCell "M1"
+    PickDateIntoCell "B3"
 End Sub
 
 Public Sub UI_PickSharedToDate()
-    PickDateIntoCell "O1"
+    PickDateIntoCell "D3"
 End Sub

@@ -27,7 +27,79 @@ Public Sub UI_UpgradeFromOldWorkbook()
     Dim report As String
     report = UpgradeFromWorkbookPath(CStr(path))
     MsgBox report, vbInformation, "Import from Previous File"
+
+    ' Coordinators only ever land on a new build's features by way of this
+    ' import (each build ships as a new, blank-data file -- see
+    ' EXCEL_BUILD_VERSION's comment in build.py), so this is the one place
+    ' that plays the role Electron's WhatsNewModal fills after an in-place
+    ' update: show what's new once, then remember it's been seen.
+    If ShouldShowWhatsNew() Then
+        Dim notes As String
+        notes = ReleaseNotesForVersion(modUtils.GetSetting("excel_build_version"))
+        If notes <> "" Then MsgBox notes, vbInformation, "What's New"
+        MarkVersionSeen
+    End If
 End Sub
+
+' ── "What's New" (mirrors the Electron app's RELEASE_NOTES/WhatsNewModal,
+'    version-gated via a stored "last seen" setting instead of app_meta) ──────
+' True if the build version recorded in this file (build.py's
+' EXCEL_BUILD_VERSION, seeded into _data_settings at build time) differs from
+' the version the current user last acknowledged -- including never having
+' acknowledged any version yet.
+Public Function ShouldShowWhatsNew() As Boolean
+    ShouldShowWhatsNew = (modUtils.GetSetting("excel_build_version") <> modUtils.GetSetting("last_seen_build_version"))
+End Function
+
+' Records the current build version as seen, so ShouldShowWhatsNew won't
+' prompt again until the file itself moves to a newer build.
+Public Sub MarkVersionSeen()
+    modUtils.SetSetting "last_seen_build_version", modUtils.GetSetting("excel_build_version")
+    modUtils.AutoSave
+End Sub
+
+' Single source of truth for the in-app "What's New" text, keyed by
+' EXCEL_BUILD_VERSION. "" for a version with no authored notes (including any
+' version not listed here) -- callers skip showing the dialog in that case.
+' Version 1 covers the whole app in one entry, not just its most recent
+' changes -- as of this build nothing has shipped to real users yet, so
+' there's no prior version for anyone to have actually seen "what's new" from.
+Private Function ReleaseNotesForVersion(version As String) As String
+    ' Built up across several statements, not one long concatenation -- VBA
+    ' caps a single logical statement at 24 line-continuations, and this text
+    ' needs more room than that.
+    Dim notes As String
+    Select Case version
+        Case "1"
+            notes = "Welcome to the Ambulatory Patient Tracker (Excel edition):" & vbCrLf & vbCrLf
+            notes = notes & "- Work Queue: filter, search, and sort patients by status, referral " & _
+                "source, or name/MRN, and track them through the full referral-to-" & _
+                "appointment workflow." & vbCrLf & vbCrLf
+            notes = notes & "- Patient detail: demographics, referral info, status history, SDAT " & _
+                "distress tracking with automatic % improvement, and a notes field -- " & _
+                "each editable in place." & vbCrLf & vbCrLf
+            notes = notes & "- Appointments: a day-by-day schedule with quick navigation, and full " & _
+                "add/edit for type, consultant, status, and notes." & vbCrLf & vbCrLf
+            notes = notes & "- Reports: Referrals by Source, First Appointments, Patients Dropped, " & _
+                "and SDAT Improvement -- each with a date range, a chart, and an " & _
+                "exportable data table." & vbCrLf & vbCrLf
+            notes = notes & "- Admin: manage user accounts and roles, edit lists of values " & _
+                "(referral sources, religions, languages, consultants, appointment " & _
+                "types), and configure data retention / purge." & vbCrLf & vbCrLf
+            notes = notes & "- Soft delete & restore for patient records deleted in error." & vbCrLf & vbCrLf
+            notes = notes & "- Export to Excel from every screen, plus two-way migration with the " & _
+                "Electron app (Admin > Export for Import / Import from Electron " & _
+                "Export)." & vbCrLf & vbCrLf
+            notes = notes & "- Password recovery: set a security question when an account is " & _
+                "created so a forgotten password can be reset from the login screen " & _
+                "(Forgot password?) without an admin. A one-time recovery code, " & _
+                "generated with the first admin account and rotatable later from the " & _
+                "Admin sheet, can regain access to any account -- even a deactivated " & _
+                "one -- if every admin is ever locked out (Admin locked out? Use " & _
+                "recovery code)."
+            ReleaseNotesForVersion = notes
+    End Select
+End Function
 
 ' Reads every _data_* sheet out of the workbook at `path` and merges it into
 ' this workbook by column name, preserving ids. Split out from
